@@ -1,4 +1,4 @@
-const Vehicle = require("../models/Vehicle");
+ const Vehicle = require("../models/Vehicle");
 
 exports.receiveVehicleData = async (req, res) => {
   try {
@@ -13,5 +13,13 @@ exports.receiveVehicleData = async (req, res) => {
     res.status(500).json({
       error: error.message
     });
+  }
+};
+exports.getVehicles = async (req, res) => {
+  try {
+    const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(200);
+    res.json(vehicles);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
