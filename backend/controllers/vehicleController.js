@@ -17,7 +17,7 @@ exports.receiveVehicleData = async (req, res) => {
 };
 exports.getVehicles = async (req, res) => {
   try {
-    const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(200);
+    const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(50);
     res.json(vehicles);
   } catch (error) {
     res.status(500).json({ error: error.message });
