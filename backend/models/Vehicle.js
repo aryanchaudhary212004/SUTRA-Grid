@@ -7,6 +7,7 @@ const VehicleSchema = new mongoose.Schema({
   speed: Number,
   direction: String,
   brake: Boolean,
+  isEmergency: { type: Boolean, default: false },
   timestamp: {
     type: Date,
     default: Date.now
