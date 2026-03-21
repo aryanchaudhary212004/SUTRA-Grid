@@ -13,5 +13,8 @@ const {
 router.post("/vehicle-data", receiveVehicleData);
 router.get("/vehicles", getVehicles);
 router.get("/signal-decision", getSignalDecision);
+const { getGreenCorridor } = require("../controllers/vehicleController");
+
+router.get("/green-corridor", getGreenCorridor);
 
 module.exports = router;
