@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer } from "react-leaflet";
+import { Marker, Popup } from "react-leaflet";
 // import MarkerClusterGroup from "react-leaflet-cluster";
 import { useEffect, useState } from "react";
 import axios from "axios";
@@ -17,6 +18,7 @@ const testIcon = new L.Icon({
   iconSize: [35, 35]
 });
 
+
 function ClusterLayer({ vehicles }) {
   const map = useMap();
 
@@ -24,17 +26,19 @@ function ClusterLayer({ vehicles }) {
     const markers = L.markerClusterGroup();
 
     vehicles.forEach((v) => {
-      const marker = L.marker([v.lat, v.lng], {
-        icon: v.vehicle_id === "MY_TEST" ? testIcon : normalIcon
-      });
+  if (!v.lat || !v.lng) return;
 
-      marker.bindPopup(`
-        <b>ID:</b> ${v.vehicle_id}<br/>
-        <b>Speed:</b> ${v.speed}
-      `);
+  const marker = L.marker([v.lat, v.lng], {
+    icon: v.vehicle_id === "MY_TEST" ? testIcon : normalIcon
+  });
 
-      markers.addLayer(marker);
-    });
+  marker.bindPopup(`
+    <b>ID:</b> ${v.vehicle_id}<br/>
+    <b>Speed:</b> ${v.speed}
+  `);
+
+  markers.addLayer(marker);
+});
 
     map.addLayer(markers);
 
@@ -50,11 +54,18 @@ function HeatmapLayer({ vehicles }) {
   const map = useMap();
 
   useEffect(() => {
-    const heatPoints = vehicles.map(v => [
-      v.lat,
-      v.lng,
-      0.5 // intensity
-    ]);
+
+    if (!vehicles || vehicles.length === 0) return;
+
+    const heatPoints = vehicles
+      .filter(v => v.lat && v.lng)
+      .map(v => [
+        v.lat,
+        v.lng,
+        (v.speed || 10) / 100
+      ]);
+
+    if (heatPoints.length === 0) return;
 
     const heat = L.heatLayer(heatPoints, {
       radius: 25,
@@ -73,29 +84,85 @@ function HeatmapLayer({ vehicles }) {
 
 function MapView() {
   const [vehicles, setVehicles] = useState([]);
+  const [zones, setZones] = useState([]);
 
   useEffect(() => {
+
     const fetchVehicles = async () => {
       const res = await axios.get("http://localhost:5000/api/vehicles");
       setVehicles(res.data);
     };
 
+    const fetchTraffic = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/traffic-analysis");
+        setZones(res.data.congestionZones);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     fetchVehicles();
-    const interval = setInterval(fetchVehicles, 2000);
+    fetchTraffic();
+
+    const interval = setInterval(() => {
+      fetchVehicles();
+      fetchTraffic();
+    }, 3000);
 
     return () => clearInterval(interval);
+
   }, []);
 
   return (
+    <>
     <MapContainer
       center={[28.6762, 77.3211]}
       zoom={13}
       style={{ height: "100vh", width: "100%" }}
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
       <ClusterLayer vehicles={vehicles} />
       <HeatmapLayer vehicles={vehicles} />
+
+      {zones.map((z, i) => {
+        const [lat, lng] = z.zone.split("-").map(Number);
+
+        return (
+          <Marker key={i} position={[lat, lng]}>
+            <Popup>
+              🚦 Congestion Detected <br/>
+              Density: {z.density} <br/>
+              Recommendation: {z.recommendation}
+            </Popup>
+          </Marker>
+        );
+      })}
+
     </MapContainer>
+    <div style={{
+      position: "fixed",
+      top: 10,
+      right: 10,
+      zIndex: 1000,
+      background: "white",
+      padding: "10px",
+      borderRadius: "8px",
+      width: "250px",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.2)"
+    }}>
+      <h3>🚦 Signal Decisions</h3>
+
+      {zones.map((z, i) => (
+        <div key={i} style={{ marginBottom: "8px" }}>
+          <b>Zone:</b> {z.zone} <br/>
+          Density: {z.density} <br/>
+          Green Time: {z.greenTime}s
+        </div>
+      ))}
+    </div>
+    </>
   );
 }
 

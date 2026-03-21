@@ -3,8 +3,16 @@ const axios = require("axios");
 const API_URL = "http://localhost:5000/api/vehicle-data";
 
 function generateVehicle(id) {
+
+  // 10% chance of ambulance
+  const isAmbulance = Math.random() < 0.1;
+
+  const vehicleId = isAmbulance
+    ? "AMB" + id
+    : "VH" + id;
+
   return {
-    vehicle_id: "VH" + id,
+    vehicle_id: vehicleId,
     lat: 28.67 + Math.random() * 0.01,
     lng: 77.32 + Math.random() * 0.01,
     speed: Math.floor(Math.random() * 80),
