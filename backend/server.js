@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 
 // MongoDB Connection
 mongoose
-  .connect("MONGO_URI")
+  .connect("mongodb+srv://singhdvya06:tE2og1ypM1kn7giN@cluster0.bttxkji.mongodb.net/")
   .then(() => {
     console.log("MongoDB connected");
   })
