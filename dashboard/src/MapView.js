@@ -360,9 +360,11 @@ function MapView() {
         return (
           <Marker key={i} position={[lat, lng]}>
             <Popup>
-              🚦 Congestion Detected <br/>
+              {z.emergency ? "🚑 Emergency Priority" : "🚦 Congestion Detected"} <br/>
               Density: {z.density} <br/>
-              Recommendation: {z.recommendation}
+              Green Time: {z.greenTime}s <br/>
+              Recommendation: {z.recommendation} <br/>
+              Prediction: {z.prediction}
             </Popup>
           </Marker>
         );
@@ -386,7 +388,8 @@ function MapView() {
         <div key={i} style={{ marginBottom: "8px" }}>
           <b>Zone:</b> {z.zone} <br/>
           Density: {z.density} <br/>
-          Green Time: {z.greenTime}s
+          Green Time: {z.greenTime}s <br/>
+          🔮 Prediction: {z.prediction}
         </div>
       ))}
     </div>

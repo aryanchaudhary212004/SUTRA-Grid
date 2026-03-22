@@ -1,4 +1,10 @@
 function analyzeTraffic(vehicles) {
+const density = zones[zone];
+
+let signalTime = 30;
+let recommendation = "Normal signal cycle";
+let prediction = "Traffic stable";
+
 
   const zones = {};
   const congestionZones = [];
@@ -26,10 +32,12 @@ function analyzeTraffic(vehicles) {
     if (density > 20) {
     signalTime = 60;
     recommendation = "Increase green signal time";
+    prediction = "Heavy congestion likely to persist";
     }
     else if (density > 10) {
       signalTime = 45;
       recommendation = "Moderate congestion";
+      prediction = "Traffic may worsen in next 5 minutes";
     }
     //emergency override
     
@@ -43,8 +51,10 @@ function analyzeTraffic(vehicles) {
     density,
     recommendation,
     greenTime: signalTime,
-    emergency: zone === emergencyZone
+    emergency: zone === emergencyZone,
+    prediction
   });
+  
 
   });
 
