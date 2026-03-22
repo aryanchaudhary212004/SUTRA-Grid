@@ -13,8 +13,8 @@ app.use(express.json());
 // Routes
 const vehicleRoutes = require("./routes/vehicleRoutes.js");
 const trafficRoutes = require("./routes/trafficRoutes");
-app.use("/api", vehicleRoutes);
-app.use("/api", trafficRoutes);
+app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/traffic", trafficRoutes);
 
 // Test Route
 app.get("/", (req, res) => {
@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 
 // MongoDB Connection
 mongoose
-  .connect("mongodb://127.0.0.1:27017/sutra-grid")
+  .connect("mongodb+srv://singhdvya06:tE2og1ypM1kn7giN@cluster0.bttxkji.mongodb.net/myDatabase?retryWrites=true&w=majority")
   .then(() => {
     console.log("MongoDB connected");
   })

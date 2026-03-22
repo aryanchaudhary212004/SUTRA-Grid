@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const API_URL = "http://localhost:5000/api/vehicle-data";
+const API_URL = "http://127.0.0.1:5000/api/vehicles/vehicle-data";
 
 function generateVehicle(id) {
 
@@ -17,7 +17,8 @@ function generateVehicle(id) {
     lng: 77.32 + Math.random() * 0.01,
     speed: Math.floor(Math.random() * 80),
     direction: ["north", "south", "east", "west"][Math.floor(Math.random() * 4)],
-    brake: Math.random() < 0.1
+    brake: Math.random() < 0.1,
+    isEmergency: isAmbulance 
   };
 }
 
