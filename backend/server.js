@@ -3,6 +3,7 @@ console.log("THIS SERVER FILE IS RUNNING");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+require("dotenv").config();   // load env only once
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 // Routes
 const vehicleRoutes = require("./routes/vehicleRoutes.js");
 const trafficRoutes = require("./routes/trafficRoutes");
+
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/traffic", trafficRoutes);
 
@@ -22,14 +24,9 @@ app.get("/", (req, res) => {
 });
 
 // MongoDB Connection
-mongoose
-  .connect("MONGO_URI")
-  .then(() => {
-    console.log("MongoDB connected");
-  })
-  .catch((err) => {
-    console.log(err);
-  });
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log("MongoDB Connected"))
+.catch(err => console.log("Mongo Error:", err));
 
 // Start Server
 app.listen(5000, () => {

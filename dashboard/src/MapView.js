@@ -212,10 +212,10 @@ function MapView() {
       setVehicles(res.data);
     };
 
-    const fetchTraffic = async () => {
-      const res = await axios.get("http://localhost:5000/api/traffic-analysis");
-      setZones(res.data.congestionZones);
-    };
+  const fetchTraffic = async () => {
+  const res = await axios.get("http://localhost:5000/api/traffic/traffic-analysis");
+  setZones(res.data.congestionZones);
+};
 
     fetchVehicles();
     fetchTraffic();
@@ -233,10 +233,10 @@ function MapView() {
 
   useEffect(() => {
 
-    const fetchSignal = async () => {
-      const res = await axios.get("http://localhost:5000/api/signal-decision");
-      setSignalData(res.data);
-    };
+  const fetchSignal = async () => {
+  const res = await axios.get("http://localhost:5000/api/traffic/signal-decision");
+  setSignalData(res.data);
+};
 
     fetchSignal();
 

@@ -6,15 +6,18 @@ const router = express.Router();
 const {
   receiveVehicleData,
   getVehicles,
-  getSignalDecision
+  getSignalDecision,
+  getGreenCorridor
 } = require("../controllers/vehicleController");
 
-// Routes
+// POST vehicle data
 router.post("/vehicle-data", receiveVehicleData);
-router.get("/vehicles", getVehicles);
-router.get("/signal-decision", getSignalDecision);
-const { getGreenCorridor } = require("../controllers/vehicleController");
 
+// GET all vehicles
+router.get("/", getVehicles);
+
+// optional routes
+router.get("/signal-decision", getSignalDecision);
 router.get("/green-corridor", getGreenCorridor);
 
 module.exports = router;
