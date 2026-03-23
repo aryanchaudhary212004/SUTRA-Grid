@@ -4,6 +4,7 @@ import axios from "axios";
 import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.heat";
+import "leaflet/dist/leaflet.css";
 import { Polyline } from "react-leaflet";
 
 /* ---------------- ICONS ---------------- */
@@ -20,35 +21,7 @@ const testIcon = new L.Icon({
 
 /* ---------------- CLUSTER LAYER ---------------- */
 
-function ClusterLayer({ vehicles }) {
-  const map = useMap();
 
-  useEffect(() => {
-    const markers = L.markerClusterGroup();
-
-    vehicles.forEach((v) => {
-      if (!v.lat || !v.lng) return;
-
-      const marker = L.marker([v.lat, v.lng], {
-        icon: v.vehicle_id === "MY_TEST" ? testIcon : normalIcon
-      });
-
-      marker.bindPopup(`
-        <b>ID:</b> ${v.vehicle_id}<br/>
-        <b>Speed:</b> ${v.speed}
-      `);
-
-      markers.addLayer(marker);
-    });
-
-    map.addLayer(markers);
-
-    return () => map.removeLayer(markers);
-
-  }, [vehicles, map]);
-
-  return null;
-}
 
 /* ---------------- HEATMAP ---------------- */
 
@@ -191,6 +164,7 @@ function TrafficLight({ signalData }) {
 function MapView() {
 
   const [vehicles, setVehicles] = useState([]);
+  const [prevVehicles, setPrevVehicles] = useState([]);
   const [zones, setZones] = useState([]);
   const [signalData, setSignalData] = useState(null);
   const totalVehicles = vehicles.length;
@@ -208,7 +182,9 @@ function MapView() {
 
     const fetchVehicles = async () => {
       const res = await axios.get("http://localhost:5000/api/vehicles");
-      setVehicles(res.data);
+
+      setPrevVehicles(vehicles); // store old positions
+      setVehicles(res.data);     // new positions
     };
 
     const fetchTraffic = async () => {
@@ -279,7 +255,19 @@ function MapView() {
           attribution="© OpenStreetMap contributors"
         />
 
-        <ClusterLayer vehicles={vehicles} />
+        {vehicles.map((v) => {
+  const prev = prevVehicles.find(
+    (p) => p.vehicle_id === v.vehicle_id
+  );
+
+  return (
+    <AnimatedMarker
+      key={v.vehicle_id}
+      vehicle={v}
+      prevVehicle={prev}
+    />
+  );
+})}
         <HeatmapLayer vehicles={vehicles} />
 
         {zones.map((z, i) => {
@@ -291,7 +279,8 @@ function MapView() {
               <Popup>
                 🚦 Congestion Detected <br/>
                 Density: {z.density} <br/>
-                Recommendation: {z.recommendation}
+                Recommendation: {z.recommendation} <br/>
+                Prediction: {z.prediction}
               </Popup>
             </Marker>
           );
@@ -345,3 +334,45 @@ function MapView() {
 }
 
 export default MapView;
+
+// Animated marker
+
+function AnimatedMarker({ vehicle, prevVehicle }) {
+  const [position, setPosition] = useState([vehicle.lat, vehicle.lng]);
+
+  useEffect(() => {
+
+    if (!prevVehicle) return;
+
+    let start = [prevVehicle.lat, prevVehicle.lng];
+    let end = [vehicle.lat, vehicle.lng];
+
+    let steps = 20;
+    let step = 0;
+
+    const interval = setInterval(() => {
+
+      step++;
+
+      const lat = start[0] + (end[0] - start[0]) * (step / steps);
+      const lng = start[1] + (end[1] - start[1]) * (step / steps);
+
+      setPosition([lat, lng]);
+
+      if (step >= steps) clearInterval(interval);
+
+    }, 100); // smooth animation
+
+    return () => clearInterval(interval);
+
+  }, [vehicle, prevVehicle]);
+
+  return (
+    <Marker position={position}>
+      <Popup>
+        ID: {vehicle.vehicle_id} <br/>
+        Speed: {vehicle.speed}
+      </Popup>
+    </Marker>
+  );
+}
