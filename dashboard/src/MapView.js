@@ -2,10 +2,67 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import L from "leaflet";
-import "leaflet.markercluster";
-import "leaflet.heat";
+// import "leaflet.markercluster";
+// import "leaflet.heat";
 import "leaflet/dist/leaflet.css";
 import { Polyline } from "react-leaflet";
+
+function RoadOverlay(){
+
+  const map = useMap();
+
+  useEffect(()=>{
+
+    const roads = [
+
+      [
+        [28.67660,77.32010],
+        [28.67685,77.32095],
+        [28.67715,77.32195],
+        [28.67745,77.32295],
+        [28.67775,77.32395],
+        [28.67805,77.32495],
+        [28.67825,77.32555]
+      ],
+
+      [
+        [28.67825,77.32555],
+        [28.67805,77.32495],
+        [28.67775,77.32395],
+        [28.67745,77.32295],
+        [28.67715,77.32195],
+        [28.67685,77.32095],
+        [28.67660,77.32010]
+      ]
+
+    ];
+
+    const lines = roads.map(path =>
+
+      L.polyline(
+        path,
+        {
+          color:"gray",
+          weight:4,
+          opacity:0.6
+        }
+      )
+
+    );
+
+    lines.forEach(l => map.addLayer(l));
+
+    return ()=>{
+
+      lines.forEach(l=>map.removeLayer(l));
+
+    };
+
+  },[map]);
+
+  return null;
+
+}
 
 /* ---------------- ICONS ---------------- */
 
@@ -22,67 +79,141 @@ const testIcon = new L.Icon({
 /* ---------------- CLUSTER LAYER ---------------- */
 
 function ClusterLayer({ vehicles }) {
+
   const map = useMap();
 
   useEffect(() => {
-    const markers = L.markerClusterGroup();
 
-    vehicles.forEach((v) => {
+    const markers = L.layerGroup();
+
+    // group by road + lane
+    const grouped = {};
+
+    vehicles.forEach(v => {
+
       if (!v.lat || !v.lng) return;
 
-      const marker = L.marker([v.lat, v.lng], {
-        icon: v.vehicle_id === "MY_TEST" ? testIcon : normalIcon
-      });
+      const key =
+        `${v.road}_${v.lane}`;
 
-      marker.bindPopup(`
-        <b>ID:</b> ${v.vehicle_id}<br/>
-        <b>Speed:</b> ${v.speed}
-      `);
+      if(!grouped[key])
+        grouped[key] = [];
 
-      markers.addLayer(marker);
+      grouped[key].push(v);
+
     });
+
+    Object.values(grouped)
+      .forEach(group => {
+
+        /*
+        cluster only if many vehicles slow
+        */
+        const stopped =
+          group.filter(v => v.speed < 5);
+
+        if(stopped.length > 10){
+
+          const avgLat =
+            stopped.reduce(
+              (s,v)=>s+v.lat,0
+            ) / stopped.length;
+
+          const avgLng =
+            stopped.reduce(
+              (s,v)=>s+v.lng,0
+            ) / stopped.length;
+
+          const cluster =
+            L.circleMarker(
+              [avgLat,avgLng],
+              {
+                radius:18,
+                color:"red"
+              }
+            );
+
+          cluster.bindPopup(
+            `Traffic Jam<br/>
+             Vehicles: ${stopped.length}`
+          );
+
+          markers.addLayer(cluster);
+
+        }
+
+        else{
+
+          group.forEach(v => {
+
+            const marker =
+              L.circleMarker(
+                [v.lat,v.lng],
+                {
+                  radius:6,
+                  color:
+                    v.speed < 10
+                      ? "orange"
+                      : "blue"
+                }
+              );
+
+            marker.bindPopup(`
+              ID: ${v.vehicle_id}<br/>
+              Speed: ${Math.round(v.speed)}
+            `);
+
+            markers.addLayer(marker);
+
+          });
+
+        }
+
+      });
 
     map.addLayer(markers);
 
-    return () => map.removeLayer(markers);
+    return () =>
+      map.removeLayer(markers);
 
-  }, [vehicles, map]);
-
-  return null;
-}
-
-/* ---------------- HEATMAP ---------------- */
-
-function HeatmapLayer({ vehicles }) {
-  const map = useMap();
-
-  useEffect(() => {
-
-    if (!vehicles || vehicles.length === 0) return;
-
-    const heatPoints = vehicles
-      .filter(v => v.lat && v.lng)
-      .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
-
-    if (heatPoints.length === 0) return;
-
-    const heat = L.heatLayer(heatPoints, {
-      radius: 25,
-      blur: 15
-    });
-
-    map.addLayer(heat);
-
-    return () => map.removeLayer(heat);
-
-  }, [vehicles, map]);
+  },[vehicles,map]);
 
   return null;
+
 }
+
+// // /* ---------------- HEATMAP ---------------- */
+
+// function HeatmapLayer({ vehicles }) {
+//   const map = useMap();
+
+//   useEffect(() => {
+
+//     if (!vehicles || vehicles.length === 0) return;
+
+//     const heatPoints = vehicles
+//       .filter(v => v.lat && v.lng)
+//       .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
+
+//     if (heatPoints.length === 0) return;
+
+//     const heat = L.heatLayer(heatPoints, {
+//       radius: 25,
+//       blur: 15
+//     });
+
+//     map.addLayer(heat);
+
+//     return () => map.removeLayer(heat);
+
+//   }, [vehicles, map]);
+
+//   return null;
+// }
 
 /* ---------------- TRAFFIC LIGHT PANEL ---------------- */
 
-function TrafficLight({ signalData }) {
+function TrafficLight({ signalData,vehicles }) {
 
   const [currentLight, setCurrentLight] = useState("green");
   const [timeLeft, setTimeLeft] = useState(0);
@@ -176,12 +307,24 @@ function TrafficLight({ signalData }) {
 
       </div>
 
-      <div style={{ marginTop: "10px", fontSize: "12px" }}>
+      {/* <div style={{ marginTop: "10px", fontSize: "12px" }}>
         🚗 Vehicles: {density} <br/>
         🟢 Green: {greenSignalDuration}s <br/>
         🔴 Red: {redSignalDuration}s <br/>
         📊 Level: {trafficLevel}
-      </div>
+      </div> */}
+
+      <div>
+🚗 Vehicles: {vehicles.length}
+</div>
+
+<div>
+🚦 Mode: Adaptive
+</div>
+
+<div>
+🧠 AI Status: Active
+</div>
 
     </div>
   );
@@ -250,70 +393,21 @@ function MapView() {
     <>
 
       <MapContainer
-        center={[28.6762, 77.3211]}
-        zoom={13}
-        style={{ height: "100vh", width: "100%" }}
-      >
-        <div style={{
-  position: "fixed",
-  top: "10px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  zIndex: 2000,
-  background: "#1a1a2e",
-  color: "white",
-  padding: "10px 20px",
-  borderRadius: "10px",
-  display: "flex",
-  gap: "25px",
-  fontSize: "14px",
-  fontWeight: "bold",
-  boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
-}}>
-  🚗 Vehicles: {totalVehicles}
-  🚦 Congestion Zones: {congestionCount}
-  🚑 Emergency: {emergencyVehicle ? "ACTIVE" : "None"}
-</div>
+  center={[28.6775,77.3240]}
+  zoom={15}
+  style={{ height: "100vh", width: "100%" }}
+>
 
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution="© OpenStreetMap contributors"
-        />
-
-        <ClusterLayer vehicles={vehicles} />
-        <HeatmapLayer vehicles={vehicles} />
-
-        {zones.map((z, i) => {
-
-          const [lat, lng] = z.zone.split("-").map(Number);
-
-          return (
-            <Marker key={i} position={[lat, lng]}>
-              <Popup>
-                🚦 Congestion Detected <br/>
-                Density: {z.density} <br/>
-                Recommendation: {z.recommendation} <br/>
-                Prediction: {z.prediction}
-              </Popup>
-            </Marker>
-          );
-
-        })}
-        {corridorRoute.length > 0 && (
-  <Polyline
-    positions={corridorRoute}
-    pathOptions={{
-      color: "#00ff88",
-      weight: 6,
-      dashArray: "10,10"
-    }}
+  <TileLayer
+    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
   />
-)}
+  <RoadOverlay/>
+  <ClusterLayer vehicles={vehicles} />
 
-      </MapContainer>
+</MapContainer>
 
       {/* AI Traffic Light */}
-      {signalData && <TrafficLight signalData={signalData} />}
+      {signalData && <TrafficLight signalData={signalData} vehicles={vehicles}/>}
 
       {/* Signal Decision Panel */}
 
