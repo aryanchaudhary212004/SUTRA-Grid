@@ -155,7 +155,14 @@ function generateVehicle(vehicleId,state){
 
   const nextIndex =
     (state.index+1) % road.length;
+  const nextIndex =
+    (state.index+1) % road.length;
 
+  const [lat1,lng1] =
+    road[state.index];
+
+  const [lat2,lng2] =
+    road[nextIndex];
   const [lat1,lng1] =
     road[state.index];
 
@@ -168,10 +175,19 @@ function generateVehicle(vehicleId,state){
   */
   state.progress +=
     0.05 + Math.random()*0.03;
+  /*
+  smooth movement
+  different speed prevents grouping
+  */
+  state.progress +=
+    0.05 + Math.random()*0.03;
+
+  if(state.progress >= 1){
 
   if(state.progress >= 1){
 
     state.index = nextIndex;
+
 
     state.progress = 0;
 
@@ -256,10 +272,38 @@ else if(
       lng,
       state.lane
     );
+  /*
+  apply lane offset
+  */
+  const [finalLat,finalLng] =
+    applyLaneOffset(
+      lat,
+      lng,
+      state.lane
+    );
 
   return {
 
+
     vehicle_id: vehicleId,
+
+    lat: finalLat,
+
+    lng: finalLng,
+
+    lane: state.lane,
+
+    road: state.road,
+
+    speed:
+      30 + Math.random()*20,
+
+    direction:"forward",
+
+    brake:false
+
+  };
+
 
     lat: finalLat,
 
@@ -298,7 +342,26 @@ async function sendVehicleData(vehicle){
 
     console.log(err.message);
 
+/*
+send to backend
+*/
+async function sendVehicleData(vehicle){
+
+  try{
+
+    await axios.post(
+      API_URL,
+      vehicle
+    );
+
   }
+
+  catch(err){
+
+    console.log(err.message);
+
+  }
+
 
 }
 
@@ -317,12 +380,33 @@ function simulateTraffic(){
         vehicleState[id]
       );
 
+/*
+simulate traffic
+*/
+function simulateTraffic(){
+
+  for(let i=1;i<=MAX_VEHICLES;i++){
+
+    const id="VH"+i;
+
+    const vehicle =
+      generateVehicle(
+        id,
+        vehicleState[id]
+      );
+
     sendVehicleData(vehicle);
+
 
   }
 
+
 }
 
+setInterval(
+  simulateTraffic,
+  1000
+);
 setInterval(
   simulateTraffic,
   1000

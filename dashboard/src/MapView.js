@@ -80,6 +80,7 @@ const testIcon = new L.Icon({
 
 function ClusterLayer({ vehicles }) {
 
+
   const map = useMap();
 
   useEffect(() => {
@@ -88,6 +89,13 @@ function ClusterLayer({ vehicles }) {
 
     // group by road + lane
     const grouped = {};
+
+    const markers = L.layerGroup();
+
+    // group by road + lane
+    const grouped = {};
+
+    vehicles.forEach(v => {
 
     vehicles.forEach(v => {
 
@@ -162,7 +170,18 @@ function ClusterLayer({ vehicles }) {
               ID: ${v.vehicle_id}<br/>
               Speed: ${Math.round(v.speed)}
             `);
+            marker.bindPopup(`
+              ID: ${v.vehicle_id}<br/>
+              Speed: ${Math.round(v.speed)}
+            `);
 
+            markers.addLayer(marker);
+
+          });
+
+        }
+
+      });
             markers.addLayer(marker);
 
           });
@@ -175,10 +194,14 @@ function ClusterLayer({ vehicles }) {
 
     return () =>
       map.removeLayer(markers);
+    return () =>
+      map.removeLayer(markers);
 
+  },[vehicles,map]);
   },[vehicles,map]);
 
   return null;
+
 
 }
 
@@ -186,28 +209,45 @@ function ClusterLayer({ vehicles }) {
 
 // function HeatmapLayer({ vehicles }) {
 //   const map = useMap();
+// function HeatmapLayer({ vehicles }) {
+//   const map = useMap();
 
 //   useEffect(() => {
+//   useEffect(() => {
 
+//     if (!vehicles || vehicles.length === 0) return;
 //     if (!vehicles || vehicles.length === 0) return;
 
 //     const heatPoints = vehicles
 //       .filter(v => v.lat && v.lng)
 //       .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
+//     const heatPoints = vehicles
+//       .filter(v => v.lat && v.lng)
+//       .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
 
+//     if (heatPoints.length === 0) return;
 //     if (heatPoints.length === 0) return;
 
 //     const heat = L.heatLayer(heatPoints, {
 //       radius: 25,
 //       blur: 15
 //     });
+//     const heat = L.heatLayer(heatPoints, {
+//       radius: 25,
+//       blur: 15
+//     });
 
+//     map.addLayer(heat);
 //     map.addLayer(heat);
 
 //     return () => map.removeLayer(heat);
+//     return () => map.removeLayer(heat);
 
 //   }, [vehicles, map]);
+//   }, [vehicles, map]);
 
+//   return null;
+// }
 //   return null;
 // }
 
@@ -404,6 +444,7 @@ function MapView() {
   <RoadOverlay/>
   <ClusterLayer vehicles={vehicles} />
 
+</MapContainer>
 </MapContainer>
 
       {/* AI Traffic Light */}
