@@ -14,6 +14,8 @@ app.use(express.json());
 // Routes
 const vehicleRoutes = require("./routes/vehicleRoutes.js");
 const trafficRoutes = require("./routes/trafficRoutes");
+app.use("/api", vehicleRoutes);
+app.use("/api", trafficRoutes);
 
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/traffic", trafficRoutes);

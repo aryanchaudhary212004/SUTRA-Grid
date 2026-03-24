@@ -15,6 +15,7 @@ exports.getSignalDecision = async (req, res) => {
   try {
     const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(500);
     const analysis = analyzeTraffic(vehicles);
+    res.json({ congestionZones: analysis });
 
     const primarySignalData = analysis.length > 0
       ? analysis[0]

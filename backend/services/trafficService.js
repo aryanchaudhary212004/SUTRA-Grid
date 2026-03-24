@@ -4,6 +4,7 @@ function analyzeTraffic(vehicles) {
   const congestionZones = [];
   let emergencyZone = null;
 
+  // Count vehicles per zone
   vehicles.forEach(v => {
 
     if (!v.lat || !v.lng) return;
@@ -20,6 +21,7 @@ function analyzeTraffic(vehicles) {
 
   });
 
+  // Analyze each zone
   Object.keys(zones).forEach(zone => {
 
     const density = zones[zone];
@@ -45,6 +47,7 @@ function analyzeTraffic(vehicles) {
       prediction = "🟢 Smooth traffic expected";
     }
 
+    // Emergency override
     if (zone === emergencyZone) {
       signalTime = 90;
       recommendation = "🚑 Emergency vehicle priority";
