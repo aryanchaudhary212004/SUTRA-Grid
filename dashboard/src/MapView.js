@@ -2,8 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import L from "leaflet";
-import "leaflet.markercluster";
-import "leaflet.heat";
+// import "leaflet.heat";
 import "leaflet/dist/leaflet.css";
 import { Polyline } from "react-leaflet";
 
@@ -22,63 +21,137 @@ const testIcon = new L.Icon({
 /* ---------------- CLUSTER LAYER ---------------- */
 
 function ClusterLayer({ vehicles }) {
+
   const map = useMap();
 
   useEffect(() => {
-    const markers = L.markerClusterGroup();
 
-    vehicles.forEach((v) => {
+    const markers = L.layerGroup();
+
+    // group by road + lane
+    const grouped = {};
+
+    vehicles.forEach(v => {
+
       if (!v.lat || !v.lng) return;
 
-      const marker = L.marker([v.lat, v.lng], {
-        icon: v.vehicle_id === "MY_TEST" ? testIcon : normalIcon
-      });
+      const key =
+        `${v.road}_${v.lane}`;
 
-      marker.bindPopup(`
-        <b>ID:</b> ${v.vehicle_id}<br/>
-        <b>Speed:</b> ${v.speed}
-      `);
+      if(!grouped[key])
+        grouped[key] = [];
 
-      markers.addLayer(marker);
+      grouped[key].push(v);
+
     });
+
+    Object.values(grouped)
+      .forEach(group => {
+
+        /*
+        cluster only if many vehicles slow
+        */
+        const stopped =
+          group.filter(v => v.speed < 5);
+
+        if(stopped.length > 10){
+
+          const avgLat =
+            stopped.reduce(
+              (s,v)=>s+v.lat,0
+            ) / stopped.length;
+
+          const avgLng =
+            stopped.reduce(
+              (s,v)=>s+v.lng,0
+            ) / stopped.length;
+
+          const cluster =
+            L.circleMarker(
+              [avgLat,avgLng],
+              {
+                radius:18,
+                color:"red"
+              }
+            );
+
+          cluster.bindPopup(
+            `Traffic Jam<br/>
+              Vehicles: ${stopped.length}`
+          );
+
+          markers.addLayer(cluster);
+
+        }
+
+        else{
+
+          group.forEach(v => {
+
+            const marker =
+              L.circleMarker(
+                [v.lat,v.lng],
+                {
+                  radius:6,
+                  color:
+                    v.speed < 10
+                      ? "orange"
+                      : "blue"
+                }
+              );
+
+            marker.bindPopup(`
+              ID: ${v.vehicle_id}<br/>
+              Speed: ${Math.round(v.speed)}
+            `);
+
+            markers.addLayer(marker);
+
+          });
+
+        }
+
+      });
 
     map.addLayer(markers);
 
-    return () => map.removeLayer(markers);
+    return () =>
+      map.removeLayer(markers);
 
-  }, [vehicles, map]);
-
-  return null;
-}
-
-/* ---------------- HEATMAP ---------------- */
-
-function HeatmapLayer({ vehicles }) {
-  const map = useMap();
-
-  useEffect(() => {
-
-    if (!vehicles || vehicles.length === 0) return;
-
-    const heatPoints = vehicles
-      .filter(v => v.lat && v.lng)
-      .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
-
-    if (heatPoints.length === 0) return;
-
-    const heat = L.heatLayer(heatPoints, {
-      radius: 25,
-      blur: 15
-    });
-
-    map.addLayer(heat);
-
-    return () => map.removeLayer(heat);
-
-  }, [vehicles, map]);
+  },[vehicles,map]);
 
   return null;
+
 }
+
+// /* ---------------- HEATMAP ---------------- */
+
+// function HeatmapLayer({ vehicles }) {
+//   const map = useMap();
+
+//   useEffect(() => {
+
+//     if (!vehicles || vehicles.length === 0) return;
+
+//     const heatPoints = vehicles
+//       .filter(v => v.lat && v.lng)
+//       .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
+
+//     if (heatPoints.length === 0) return;
+
+//     const heat = L.heatLayer(heatPoints, {
+//       radius: 25,
+//       blur: 15
+//     });
+
+//     map.addLayer(heat);
+
+//     return () => map.removeLayer(heat);
+
+//   }, [vehicles, map]);
+
+//   return null;
+// }
 
 /* ---------------- TRAFFIC LIGHT PANEL ---------------- */
 
@@ -177,10 +250,21 @@ function TrafficLight({ signalData }) {
       </div>
 
       <div style={{ marginTop: "10px", fontSize: "12px" }}>
-        🚗 Vehicles: {density} <br/>
+        {/* 🚗 Vehicles: {density} <br/>
         🟢 Green: {greenSignalDuration}s <br/>
         🔴 Red: {redSignalDuration}s <br/>
-        📊 Level: {trafficLevel}
+        📊 Level: {trafficLevel} */}
+        <div>
+🚗 Vehicles: {vehicles.length}
+</div>
+
+<div>
+🚦 Mode: Adaptive
+</div>
+
+<div>
+🧠 AI Status: Active
+</div>
       </div>
 
     </div>
@@ -249,7 +333,7 @@ function MapView() {
   return (
     <>
 
-      <MapContainer
+      {/* <MapContainer
         center={[28.6762, 77.3211]}
         zoom={13}
         style={{ height: "100vh", width: "100%" }}
@@ -310,7 +394,20 @@ function MapView() {
   />
 )}
 
-      </MapContainer>
+      </MapContainer> */}
+      <MapContainer
+  center={[28.6775,77.3240]}
+  zoom={15}
+  style={{ height: "100vh", width: "100%" }}
+>
+
+  <TileLayer
+    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  />
+
+  <ClusterLayer vehicles={vehicles} />
+
+</MapContainer>
 
       {/* AI Traffic Light */}
       {signalData && <TrafficLight signalData={signalData} />}
