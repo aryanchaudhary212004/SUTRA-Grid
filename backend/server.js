@@ -28,7 +28,7 @@ app.get("/", (req, res) => {
 });
 
 // MongoDB Connection
-mongoose.connect("mongodb+srv://singhdvya06:tE2og1ypM1kn7giN@cluster0.bttxkji.mongodb.net/")
+mongoose.connect("process.env.MONGO_URI")
 .then(() => console.log("MongoDB Connected"))
 .catch(err => console.log("Mongo Error:", err));
 
