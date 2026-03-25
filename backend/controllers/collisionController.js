@@ -18,3 +18,15 @@ exports.getCollisionWarnings = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ✅ ADD THIS FUNCTION (MISSING BEFORE)
+exports.getAccidentPrediction = async (req, res) => {
+  try {
+    res.json({
+      message: "No accident predicted",
+      riskLevel: "Low"
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
