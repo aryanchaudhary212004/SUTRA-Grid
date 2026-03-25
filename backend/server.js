@@ -20,9 +20,6 @@ const trafficRoutes = require("./routes/trafficRoutes");
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/traffic", trafficRoutes);
 
-
-
-// Test Route
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
