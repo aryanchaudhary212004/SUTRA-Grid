@@ -1,5 +1,6 @@
 const Vehicle = require("../models/Vehicle");
 const { analyzeTraffic } = require("../services/trafficService");
+const axios = require("axios");
 
 exports.getTrafficAnalysis = async (req, res) => {
   try {
@@ -20,7 +21,7 @@ exports.getCongestionPrediction = async (req, res) => {
       level: "Low"
     });
   } catch (error) {
-    res.status(200).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -30,22 +31,19 @@ exports.getSignalDecision = async (req, res) => {
 
     const analysis = analyzeTraffic(vehicles);
 
-    const primarySignalData = analysis.length > 0
-      ? analysis[0]
-      : {
-          density: 0,
-          trafficLevel: "Low",
-          greenSignalDuration: 30,
-          redSignalDuration: 30,
-          yellowSignalDuration: 5,
-          emergency: false,
-          recommendation: "Normal flow",
-          prediction: "Traffic stable"
-        };
+    const primary = analysis.length > 0 ? analysis[0] : null;
 
-    // ✅ ONLY ONE RESPONSE
+    res.json({
+      density: primary?.density || 0,
+      trafficLevel: primary?.density > 20 ? "Heavy" :
+                    primary?.density > 10 ? "Moderate" : "Low",
+
+      greenSignalDuration: primary?.greenTime || 30,
+      redSignalDuration: 30,
+      yellowSignalDuration: 5
+    });
+
     res.json(primarySignalData);
-
   } catch (error) {
     res.status(200).json({ error: error.message });
   }

@@ -154,17 +154,15 @@ function generateVehicle(id, state) {
   const lng = lng1 + (lng2 - lng1) * state.progress;
 
   const [finalLat, finalLng] = applyLaneOffset(lat, lng, state.lane);
+  const directions = ["north", "south", "east", "west"];
 
   return {
-    vehicle_id: id,
-    lat: finalLat,
-    lng: finalLng,
-    lane: state.lane,
-    road: state.road,
-    speed: state.brake ? 5 : 25 + Math.random()*10,
+    vehicle_id: vehicleId,
+    lat: lat + laneOffset,
+    lng: lng + laneOffset,
+    speed: Math.floor(Math.random() * 60) + 20,
     direction: "forward",
-    brake: Math.random() > 0.9,
-    isEmergency: Math.random() < 0.05 // 5% ambulances
+    brake: Math.random() < 0.05
   };
 }
 
@@ -201,38 +199,15 @@ async function sendVehicleData(vehicle) {
   }
 }
 
-/* ───────────── SIMULATION ───────────── */
-function simulateTraffic(){
-
-  const vehicles = []
-  
-  // 1. generate all vehicles
-  for (let id in vehicleState) {
-  const vehicle = generateVehicle(id, vehicleState[id]);
-
-  if (vehicle) {
-    vehicles.push(vehicle);
-  }
-}
-
-  // 2. apply collision avoidance
-  for(let v of vehicles){
-    avoidCollision(v, vehicles);
-  }
-
-  // 3. send data
-  for(let v of vehicles){
-    sendVehicleData(v);
+// Simulate traffic
+function simulateTraffic() {
+  for (let i = 1; i <= 100; i++) {
+    const vehicle = generateVehicle(i);
+    sendVehicleData(vehicle);
   }
 
 }
 /* ───────────── RUN ───────────── */
 
-// movement every second
-setInterval(simulateTraffic, 1000);
-
-// add 1 vehicle every minute
-setInterval(createNewVehicle, 60000);
-
-// start with 1 vehicle immediately (optional)
-createNewVehicle();
+// Run every 3 seconds
+setInterval(simulateTraffic, 3000);

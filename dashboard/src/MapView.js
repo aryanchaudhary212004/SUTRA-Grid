@@ -1,19 +1,25 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, Polyline } from "react-leaflet";
+import { BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { useEffect, useState } from "react";
+import { useRef } from "react";
+import { io } from "socket.io-client";
 import axios from "axios";
+import { Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.heat";
- 
-/* ─────────────── ICONS ─────────────── */
- 
+import "leaflet/dist/leaflet.css";
+import { Polyline } from "react-leaflet";
+
+/* ---------------- ICONS ---------------- */
+
 const normalIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41]
 });
- 
-const ambulanceIcon = new L.Icon({
+
+const testIcon = new L.Icon({
   iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
   iconSize: [22, 22]
 });
@@ -44,8 +50,6 @@ function ClusterLayer({ vehicles, simulationMode }) {
   const map = useMap();
  
   useEffect(() => {
-    if (!Array.isArray(vehicles) || vehicles.length === 0) return;
- 
     const markers = L.markerClusterGroup();
  
     vehicles.forEach(v => {
@@ -77,8 +81,9 @@ function ClusterLayer({ vehicles, simulationMode }) {
  
     map.addLayer(markers);
     return () => map.removeLayer(markers);
-  }, [vehicles, map, simulationMode]);
- 
+
+  }, [vehicles, map]);
+
   return null;
 }
  
@@ -88,12 +93,13 @@ function HeatmapLayer({ vehicles }) {
   const map = useMap();
  
   useEffect(() => {
-    if (!Array.isArray(vehicles) || vehicles.length === 0) return;
- 
+
+    if (!vehicles || vehicles.length === 0) return;
+
     const heatPoints = vehicles
       .filter(v => v.lat && v.lng)
       .map(v => [v.lat, v.lng, (v.speed || 10) / 100]);
- 
+
     if (heatPoints.length === 0) return;
  
     const heat = L.heatLayer(heatPoints, {
@@ -108,23 +114,23 @@ function HeatmapLayer({ vehicles }) {
  
   return null;
 }
- 
-/* ─────────────── TRAFFIC LIGHT ─────────────── */
- 
+
+/* ---------------- TRAFFIC LIGHT PANEL ---------------- */
+
 function TrafficLight({ signalData }) {
   const [currentLight, setCurrentLight] = useState("green");
   const [timeLeft, setTimeLeft] = useState(0);
  
   useEffect(() => {
     if (!signalData) return;
- 
-    const { greenSignalDuration = 30, redSignalDuration = 30, yellowSignalDuration = 5 } = signalData;
- 
+
+    const { greenSignalDuration, redSignalDuration, yellowSignalDuration } = signalData;
+
     const cycle = [
-      { light: "green",  duration: greenSignalDuration },
+      { light: "green", duration: greenSignalDuration },
       { light: "yellow", duration: yellowSignalDuration },
-      { light: "red",    duration: redSignalDuration },
-      { light: "yellow", duration: yellowSignalDuration }
+      { light: "red", duration: redSignalDuration },
+      { light: "yellow", duration: yellowSignalDuration },
     ];
  
     let index = 0;
@@ -148,672 +154,216 @@ function TrafficLight({ signalData }) {
   }, [signalData]);
  
   if (!signalData) return null;
- 
-  const lightColor = c =>
-    currentLight === c
-      ? c === "red" ? "#e74c3c" : c === "yellow" ? "#f1c40f" : "#2ecc71"
-      : "#444";
- 
+
+  const { density, greenSignalDuration, redSignalDuration, trafficLevel } = signalData;
+
   return (
     <div style={{
-      position: "fixed", top: 50, bottom:350, left: 20, zIndex: 2000,
-      background: "#4a4a64", padding: 10, borderRadius: 12,
-      width: 100, boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-      textAlign: "center"
+      position: "absolute",
+      top: 80,
+      left: 20,
+      zIndex: 1000,
+      background: "white",
+      padding: "15px",
+      borderRadius: "10px",
+      width: "200px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
     }}>
-      <div style={{ color: "white", fontWeight: "bold", marginBottom: 10, fontSize: 13 }}>
-        🚦 SIGNAL
-      </div>
- 
+
+      <h4>🚦 Traffic Signal</h4>
+
       <div style={{
         background: "#111", padding: 12, borderRadius: 10,
         display: "flex", flexDirection: "column",
         alignItems: "center", gap: 8
       }}>
-        {["red", "yellow", "green"].map(c => (
-          <div key={c} style={{
-            width: 20, height: 20, borderRadius: "50%",
-            background: lightColor(c),
-            boxShadow: currentLight === c ? `0 0 14px ${lightColor(c)}` : "none",
-            transition: "all 0.3s"
-          }} />
+
+        {["red", "yellow", "green"].map((c) => (
+
+          <div key={c}
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              background:
+                currentLight === c
+                  ? (c === "red" ? "#e74c3c" : c === "yellow" ? "#f1c40f" : "#2ecc71")
+                  : "#555"
+            }}
+          />
+
         ))}
-        <div style={{ color: "white", fontSize: 18, fontWeight: "bold", marginTop: 4 }}>
+
+        <div style={{ color: "white", fontSize: "18px", fontWeight: "bold" }}>
           {timeLeft}s
         </div>
+
       </div>
- 
-      <div style={{ color: "#aaa", fontSize: 11, marginTop: 8 }}>
-        {signalData.trafficLevel} traffic
+
+      <div style={{ marginTop: "10px", fontSize: "12px" }}>
+        🚗 Vehicles: {density} <br/>
+        🟢 Green: {greenSignalDuration}s <br/>
+        🔴 Red: {redSignalDuration}s <br/>
+        📊 Level: {trafficLevel}
       </div>
     </div>
   );
 }
 
+/* ---------------- MAIN MAP VIEW ---------------- */
 
-/* ─────────────── MAIN MAP VIEW ─────────────── */
- 
 function MapView() {
-  const [vehicles,          setVehicles]          = useState([]);
-  const [zones,             setZones]             = useState([]);
-  const [signalData,        setSignalData]        = useState(null);
-  const [collisionWarnings, setCollisionWarnings] = useState([]);
-  const [pulse,             setPulse]             = useState(false);
-  const [aiExplanation,     setAiExplanation]     = useState("Analyzing traffic...");
-  // const [simulationMode,setSimulationMode] = useState(false)
-  const [violations,setViolations] = useState([])
-  const [showAnalytics,setShowAnalytics] = useState(false)
-  const [showAI,setShowAI] = useState(false)
-  const [mode,setMode] = useState("LIVE")
-  const [replaySeconds,setReplaySeconds] = useState(60)
- 
 
-  const runSimulation = async () => {
+  const [vehicles, setVehicles] = useState([]);
+  const [zones, setZones] = useState([]);
+  const [signalData, setSignalData] = useState(null);
+  const totalVehicles = vehicles.length;
+  const congestionCount = zones.length;
 
-  try{
+  const emergencyVehicle = vehicles.find(v =>
+    v.vehicle_id && v.vehicle_id.includes("AMB")
+  );
+  const corridorRoute = vehicles
+  .filter(v => v.vehicle_id && v.vehicle_id.includes("AMB"))
+  .map(v => [v.lat, v.lng]);
+  /* ---------- VEHICLE + TRAFFIC ---------- */
 
-    const res = await axios.get("http://localhost:5000/api/simulate")
-
-    if(res.data.futureVehicles){
-      setVehicles(res.data.futureVehicles)
-    }
-
-  }
-  catch(e){
-    console.error("Simulation error:",e)
-  }
-
-}  
-  /* ── pulse animation for corridor ── */
   useEffect(() => {
-  const id = setInterval(() => {
-    setPulse(p => !p);
-  }, 700);
 
-  return () => clearInterval(id);
-}, []);
- 
-  /* ── fetch vehicles + traffic ── */
-  useEffect(() => {
     const fetchVehicles = async () => {
-      try {
-        let url
-
-if(mode==="LIVE"){
-url="http://localhost:5000/api/vehicles/"
-}
-else if(mode==="REPLAY"){
-url=`http://localhost:5000/api/replay?seconds=${replaySeconds}`
-}
-else if(mode==="SIMULATION"){
-url="http://localhost:5000/api/simulate"
-}
-
-const res = await axios.get(url)
-        const data = res.data;
-        setVehicles(Array.isArray(data) ? data : data.vehicles || data.data || []);
-      } catch (e) {
-        console.error("fetchVehicles error:", e);
-        setVehicles([]);
-      }
-    };
- 
-    const fetchTraffic = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/traffic/traffic-analysis");
-        setZones(Array.isArray(res.data.congestionZones) ? res.data.congestionZones : []);
-      } catch (e) {
-        console.error("fetchTraffic error:", e);
-        setZones([]);
-      }
-    };
- 
-    const fetchCollisions = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/traffic/collision-risk");
-        setCollisionWarnings(Array.isArray(res.data.warnings) ? res.data.warnings : []);
-      } catch (e) {
-        console.error("fetchCollisions error:", e);
-        setCollisionWarnings([]);
-      }
+      const res = await axios.get("http://localhost:5000/api/vehicles");
+      setVehicles(res.data);
     };
 
-    const fetchViolations = async () => {
+  const fetchTraffic = async () => {
+  const res = await axios.get("http://localhost:5000/api/traffic/traffic-analysis");
+  setZones(res.data.congestionZones);
+};
 
-  try{
-
-    const res = await axios.get("http://localhost:5000/api/violations")
-
-    setViolations(res.data.violations)
-
-  }
-
-  catch(e){
-    console.error(e)
-  }
-
-}
- 
-  fetchVehicles();
-fetchTraffic();
-fetchCollisions();
-fetchViolations();
-
-const id = setInterval(() => {
-
-  if(mode === "SIMULATION"){
-    runSimulation();
-  } else {
     fetchVehicles();
-  }
+    fetchTraffic();
 
-  fetchTraffic();
-  fetchCollisions();
-  fetchViolations();
+    const interval = setInterval(() => {
+      fetchVehicles();
+      fetchTraffic();
+    }, 3000);
 
-}, 3000);
+    return () => clearInterval(interval);
 
-return () => clearInterval(id);
+  }, []);
 
-}, [mode, replaySeconds]);
- 
-  /* ── fetch signal data ── */
+  /* ---------- SIGNAL DATA ---------- */
+
   useEffect(() => {
-    const fetchSignal = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/traffic/signal-decision");
-        setSignalData(res.data && typeof res.data === "object" ? res.data : null);
-      } catch (e) {
-        console.error("fetchSignal error:", e);
-        setSignalData(null);
-      }
-    };
- 
+
+  const fetchSignal = async () => {
+  const res = await axios.get("http://localhost:5000/api/traffic/signal-decision");
+  setSignalData(res.data);
+};
+
     fetchSignal();
-    const id = setInterval(fetchSignal, 2000);
-    return () => clearInterval(id);
-  }, [mode, replaySeconds]);
- 
-  /* ── AI explanation ── */
-  useEffect(() => {
-    if (!signalData) return;
-    const { trafficLevel, emergency } = signalData;
- 
-    if (emergency) {
-      setAiExplanation("🚑 Emergency vehicle detected. Green corridor activated. All signals overridden.");
-    } else if (trafficLevel === "Heavy") {
-      setAiExplanation("Heavy congestion detected. AI extended green signal to 60s to clear traffic.");
-    } else if (trafficLevel === "High") {
-      setAiExplanation("High traffic density. Signal timing adjusted to 45s. Monitor for worsening.");
-    } else {
-      setAiExplanation("Traffic flow is stable. Normal 30s signal cycle active.");
-    }
-  }, [signalData]);
- 
-  /* ── derived stats ── */
-  const totalVehicles     = vehicles.length;
-  const emergencyVehicles = vehicles.filter(v => v.vehicle_id?.includes("AMB")).length;
-  const congestionCount   = zones.length;
-  const avgSpeed          = totalVehicles > 0
-    ? Math.round(vehicles.reduce((s, v) => s + (v.speed || 0), 0) / totalVehicles)
-    : 0;
- 
-  const ambulancePositions = vehicles
-    .filter(v => v.vehicle_id?.includes("AMB"))
-    .map(v => [v.lat, v.lng]);
- 
-  const hasCollision = collisionWarnings.length > 0;
- 
+
+    const interval = setInterval(fetchSignal, 2000);
+
+    return () => clearInterval(interval);
+
+  }, []);
+
   return (
     <>
-      {/* ── TOP STATS BAR ── */}
-<div style={{
-  position: "fixed", top: 6, left: "50%",
-  transform: "translateX(-50%)", zIndex: 2000,
-  background: "#0d0d1a", color: "white",
-  padding: "4px 14px", borderRadius: 50,
-  display: "flex", gap: 28, fontSize: 12,
-  fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-  border: "1px solid #333", letterSpacing: "0.5px"
-}}>
 
-<span style={{
-display:"flex",
-alignItems:"center",
-gap:"6px"
-}}>
-<div style={{
-width:8,
-height:8,
-borderRadius:"50%",
-background:"#00ff88",
-boxShadow:"0 0 8px #00ff88"
-}}/>
-
-SYSTEM ONLINE
-</span>
-
-<span> Vehicles {totalVehicles} </span>
-
-<span> Congestion {congestionCount} </span>
-
-<span style={{ color: emergencyVehicles > 0 ? "#ff5555" : "#55ff99" }}>
-Emergency {emergencyVehicles > 0 ? `${emergencyVehicles} ACTIVE` : "None"}
-</span>
-
-<span style={{ color: hasCollision ? "#ffaa00" : "#aaa" }}>
-Collision Risk {collisionWarnings.length}
-</span>
-
-<span style={{
-color:
-mode==="SIMULATION" ? "#bb86fc"
-: mode==="REPLAY" ? "#ffaa00"
-: "#00ff88"
-}}>
-{mode==="SIMULATION"
-? "Digital Twin Active"
-: mode==="REPLAY"
-? "Replay Mode"
-: "Live Mode"}
-</span>
-
-<div style={{
-display:"flex",
-gap:6,
-marginLeft:10
-}}>
-
-<button
-onClick={()=>setMode("LIVE")}
-style={{
-padding:"4px 8px",
-borderRadius:12,
-border:"none",
-cursor:"pointer",
-background: mode==="LIVE" ? "#00ff88" : "#333",
-color:"white",
-fontSize:11
-}}
->
-LIVE
-</button>
-
-<button
-onClick={()=>setMode("REPLAY")}
-style={{
-padding:"4px 8px",
-borderRadius:12,
-border:"none",
-cursor:"pointer",
-background: mode==="REPLAY" ? "#ffaa00" : "#333",
-color:"white",
-fontSize:11
-}}
->
-REPLAY
-</button>
-
-<button
-onClick={()=>setMode("SIMULATION")}
-style={{
-padding:"4px 8px",
-borderRadius:12,
-border:"none",
-cursor:"pointer",
-background: mode==="SIMULATION" ? "#bb86fc" : "#333",
-color:"white",
-fontSize:11
-}}
->
-DIGITAL TWIN
-</button>
-
-</div>
-</div>
-      
-      
-      {/* ── MAP ── */}
       <MapContainer
         center={[28.6762, 77.3211]}
-        zoom={15}
-        style={{ height:"100vh",
-        width:"100%",
-        filter: mode==="SIMULATION"
-? "hue-rotate(20deg) saturate(1.2)"
-: "none"
-      }}
+        zoom={13}
+        style={{ height: "100vh", width: "100%" }}
       >
+        <div style={{
+  position: "fixed",
+  top: "10px",
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 2000,
+  background: "#1a1a2e",
+  color: "white",
+  padding: "10px 20px",
+  borderRadius: "10px",
+  display: "flex",
+  gap: "25px",
+  fontSize: "14px",
+  fontWeight: "bold",
+  boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
+}}>
+  🚗 Vehicles: {totalVehicles}
+  🚦 Congestion Zones: {congestionCount}
+  🚑 Emergency: {emergencyVehicle ? "ACTIVE" : "None"}
+</div>
+
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="© OpenStreetMap contributors"
         />
- 
-        <ClusterLayer vehicles={vehicles} simulationMode={mode==="SIMULATION"} />
-      {/* <HeatmapLayer vehicles={vehicles} /> */}
- 
-        {/* Congestion zone markers */}
+
+        <ClusterLayer vehicles={vehicles} />
+        <HeatmapLayer vehicles={vehicles} />
+
         {zones.map((z, i) => {
-          const parts = z.zone ? z.zone.split("-").map(Number) : [];
-          if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
-          const [lat, lng] = parts;
+
+          const [lat, lng] = z.zone.split("-").map(Number);
+
           return (
-            <Marker key={`zone-${i}`} position={[lat, lng]}
-              icon={z.emergency ? ambulanceIcon : normalIcon}>
+            <Marker key={i} position={[lat, lng]}>
               <Popup>
-                <b>{z.emergency ? "🚑 Emergency Priority" : "🚦 Congestion Zone"}</b><br />
-                Density: {z.density}<br />
-                Green Time: {z.greenTime}s<br />
-                Recommendation: {z.recommendation}<br />
-                🔮 {z.prediction}
+                🚦 Congestion Detected <br/>
+                Density: {z.density} <br/>
+                Recommendation: {z.recommendation} <br/>
+                Prediction: {z.prediction}
               </Popup>
             </Marker>
           );
         })}
- 
-        {/* Ambulance green corridor */}
-        {ambulancePositions.length > 1 && (
-          <Polyline
-            positions={ambulancePositions}
-            pathOptions={{
-              color: pulse ? "#00ff88" : "#00cc66",
-              weight: pulse ? 10 : 6,
-              opacity: 0.9,
-              dashArray: "12 8"
-            }}
-          />
-        )}
- 
-        {/* Collision warning markers */}
-        {collisionWarnings.map((w, i) => (
-          <Marker key={`col-${i}`} position={[w.lat, w.lng]} icon={warningIcon}>
-            <Popup>
-              <b>⚠️ COLLISION RISK: {w.risk}</b><br />
-              {w.message}<br />
-              <b>Vehicles:</b> {w.vehicles?.join(" ↔ ")}<br />
-              Combined Speed: {w.combinedSpeed} km/h<br />
-              Distance: {w.distance}°
-            </Popup>
-          </Marker>
-        ))}
- 
-        {/* Collision warning circles */}
-        {collisionWarnings.map((w, i) => (
-  <Circle
-    key={`circle-${i}`}
-    center={[w.lat, w.lng]}
-    radius={20}
+        {corridorRoute.length > 0 && (
+  <Polyline
+    positions={corridorRoute}
     pathOptions={{
-      color: w.risk === "CRITICAL" ? "#ff0000" : "#ff9900",
-      fillColor: w.risk === "CRITICAL" ? "#ff0000" : "#ff9900",
-      fillOpacity: 0.15,
-      weight: 1
+      color: "#00ff88",
+      weight: 6,
+      dashArray: "10,10"
     }}
   />
-))}
-        {violations.map((v,i)=>(
-  <Marker
-    key={i}
-    position={[v.lat,v.lng]}
-    icon={warningIcon}
-  >
-    <Popup>
+)}
 
-      <b>🚨 TRAFFIC VIOLATION</b>
-
-      <br/>
-
-      Vehicle: {v.vehicle}
-
-      <br/>
-
-      Type: {v.type}
-
-      <br/>
-
-      Severity: {v.severity}
-
-    </Popup>
-  </Marker>
-))}
       </MapContainer>
- 
-      {/* ── TRAFFIC LIGHT ── */}
-      <TrafficLight signalData={signalData} />
- 
-      {/* ── SIGNAL DECISIONS PANEL (RIGHT) ── */}
+
+      {/* AI Traffic Light */}
+      {signalData && <TrafficLight signalData={signalData} />}
+
+      {/* Signal Decision Panel */}
+
       <div style={{
-        position: "fixed", top: 50, bottom: 180, right: 20, zIndex: 2000,
-        background: "white", padding: 16, borderRadius: 14,
-        width: 170, boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
-        maxHeight: "75vh", overflowY: "auto"
-      }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>🚦 Signal Decisions</h3>
-        {zones.length === 0 && (
-          <p style={{ color: "#999", fontSize: 12 }}>No congestion detected.</p>
-        )}
-        {zones.slice(0, 5).map((z, i) => (
-          <div key={i} style={{
-            marginBottom: 10, padding: 10, borderRadius: 8,
-            background: z.emergency ? "#fff0f0" : "#f5f7fa",
-            borderLeft: `4px solid ${z.emergency ? "#e74c3c" : "#3498db"}`
-          }}>
-            <b style={{ fontSize: 12 }}>Zone {i + 1}</b><br />
-            <span style={{ fontSize: 11, color: "#555" }}>
-              Density: {z.density} vehicles<br />
-              🟢 Green: {z.greenTime}s<br />
-              {z.emergency && <span style={{ color: "#e74c3c" }}>🚑 Emergency Priority<br /></span>}
-              🔮 {z.prediction}
-            </span>
-          </div>
-        ))}
-      </div>
- 
-      {/* ── COLLISION WARNINGS PANEL ── */}
-      {collisionWarnings.length > 0 && (
-        <div style={{
-          position: "fixed", top: 300, bottom:20, left: 20, width:180, zIndex: 2000,
-          background: "#1a0000", border: "2px solid #ff2d2d",
-          padding: 14, borderRadius: 12, width: 170,
-          boxShadow: "0 6px 25px rgba(255,0,0,0.4)",
-          maxHeight: "60vh", overflowY: "auto"
-        }}>
-          <h3 style={{ margin: "0 0 10px", color: "#ff4444", fontSize: 14 }}>
-            ⚠️ Collision Warnings ({collisionWarnings.length})
-          </h3>
-          {collisionWarnings.map((w, i) => (
-            <div key={i} style={{
-              marginBottom: 8, padding: 8, borderRadius: 6,
-              background: w.risk === "CRITICAL" ? "#3a0000" : "#2a1000",
-              borderLeft: `4px solid ${w.risk === "CRITICAL" ? "#ff0000" : "#ff8800"}`
-            }}>
-              <b style={{ color: w.risk === "CRITICAL" ? "#ff4444" : "#ffaa00", fontSize: 11 }}>
-                {w.risk}
-              </b><br />
-              <span style={{ color: "#ccc", fontSize: 11 }}>
-                {w.vehicles?.join(" ↔ ")}<br />
-                {w.message}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
- 
-      {/* ── AI DECISION PANEL (BOTTOM RIGHT) ── */}
-      <div style={{
-position:"fixed",
-bottom:20,
-right:20,
-zIndex:2000
-}}>
-
-<button
-onClick={()=>setShowAI(!showAI)}
-style={{
-background:"#ffffff",
-border:"none",
-borderRadius:10,
-padding:"10px 14px",
-fontWeight:"bold",
-boxShadow:"0 4px 15px rgba(0,0,0,0.2)",
-cursor:"pointer"
-}}
->
-🧠 AI Decision
-</button>
-
-{showAI && (
-<div style={{
-marginTop:10,
-background:"white",
-padding:14,
-borderRadius:12,
-width:220,
-boxShadow:"0 4px 20px rgba(0,0,0,0.2)",
-fontSize:12,
-lineHeight:1.6
-}}>
-{aiExplanation}
-</div>
-)}
-
-</div>
-
-      {mode==="SIMULATION" && (
-<div style={{
-  position:"fixed",
-  bottom:180,
-  right:20,
-  zIndex:2000,
-  background:"#0a0a1f",
-  color:"white",
-  padding:16,
-  borderRadius:12,
-  width:260,
-  boxShadow:"0 4px 20px rgba(0,0,0,0.4)"
-}}>
-
-<h3 style={{margin:"0 0 8px"}}>🔮 AI Simulation</h3>
-
-<p style={{fontSize:12,lineHeight:1.6}}>
-
-Digital Twin predicting traffic for next <b>5 minutes</b>.
-
-<br/><br/>
-
-Congestion probability:
-
-<span style={{color:"#ff5555"}}> 82%</span>
-
-<br/><br/>
-
-Recommended Action:
-
-<br/>
-
-🟢 Increase green signal by 20 seconds
-
-</p>
-
-</div>
-)}
-      <div style={{
-position:"fixed",
-top:450,
-right:20,
-width:200,
-background:"#1a0000",
-color:"white",
-padding:10,
-borderRadius:10,
-width:170,
-zIndex:9999
-}}>
-
-<h3>🚨 Rule Violations</h3>
-
-{violations.length===0 && <p>No violations detected</p>}
-
-{violations.slice(0,5).map((v,i)=>(
-<div key={i} style={{marginBottom:8}}>
-
-<b>{v.type}</b>
-
-<br/>
-
-Vehicle: {v.vehicle}
-
-</div>
-))}
-
-</div>
-
-<div style={{
-position:"fixed",
-top:50,
-right:450,
-background:"white",
-padding:"6px 10px",
-borderRadius:8,
-fontSize:11,
-zIndex:2000,
-boxShadow:"0 2px 8px rgba(0,0,0,0.15)",
-display:"flex",
-gap:12,
-alignItems:"center"
-}}>
-<span>🔵 Vehicle</span>
-<span>🔴 Ambulance</span>
-<span>⚠ Collision</span>
-<span>🟠 Congestion</span>
-<span>🚨 Violation</span>
-</div>
- 
-      {/* ── TRAFFIC ANALYTICS (BOTTOM LEFT) ── */}
-<div
-  style={{
-    position: "fixed",
-    bottom: 20,
-    right: 600,
-    left: 250,
-    zIndex: 2000
-  }}
->
-  <button
-    onClick={() => setShowAnalytics(!showAnalytics)}
-    style={{
-      background: "#ffffff",
-      border: "none",
-      borderRadius: 10,
-      padding: "10px 14px",
-      fontWeight: "bold",
-      boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-      cursor: "pointer"
-    }}
-  >
-    📊 Traffic Analytics
-  </button>
-
-  {showAnalytics && (
-    <div
-      style={{
-        marginTop: 10,
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        zIndex: 2000,
         background: "white",
-        padding: 14,
-        borderRadius: 12,
-        width: 220,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-        fontSize: 13
-      }}
-    >
-      <div>🚗 Vehicles: <b>{totalVehicles}</b></div>
-      <div>🚑 Emergency: <b>{emergencyVehicles || "None"}</b></div>
-      <div>🔥 Congestion Zones: <b>{congestionCount}</b></div>
-      <div>⚡ Avg Speed: <b>{avgSpeed} km/h</b></div>
-      <div>⚠️ Collision Risks: <b>{collisionWarnings.length}</b></div>
+        padding: "18px",
+        borderRadius: "14px",
+        width: "260px",
+        boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+        fontFamily: "Inter, Arial",
+        maxHeight: "80vh",
+        overflowY: "auto"
+      }}>
+      <h3 style={{marginTop:0}}>🚦 Signal Decisions</h3>
+
+      {zones.map((z, i) => (
+        <div key={i} style={{ marginBottom: "8px" }}>
+          <b>Zone:</b> {z.zone} <br/>
+          Density: {z.density} <br/>
+          Green Time: {z.greenTime}s
+        </div>
+      ))}
     </div>
-  )}
-</div>
+
     </>
   );
 }

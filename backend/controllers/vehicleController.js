@@ -9,6 +9,8 @@ exports.receiveVehicleData = async (req, res) => {
   { upsert: true, new: true }
 );
     res.status(200).json({ message: "Vehicle data stored successfully" });
+    const io = req.app.get("io");
+    io.emit("vehicle-update", vehicle);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
