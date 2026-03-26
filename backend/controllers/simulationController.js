@@ -5,6 +5,8 @@ exports.runSimulation = async (req,res) => {
   try{
 
     const vehicles = await Vehicle.find()
+    .sort({ timestamp: -1 })
+    .limit(150)
 
     const simulated = vehicles.map(v => ({
 

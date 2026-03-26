@@ -15,7 +15,7 @@ const normalIcon = new L.Icon({
  
 const ambulanceIcon = new L.Icon({
   iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-  iconSize: [35, 35]
+  iconSize: [22, 22]
 });
  
 const warningIcon = new L.DivIcon({
@@ -34,7 +34,7 @@ const warningIcon = new L.DivIcon({
     box-shadow: 0 0 10px rgba(255,0,0,0.8);
     animation: pulse 0.7s infinite alternate;
   ">⚠️</div>`,
-  iconSize: [36, 36],
+  iconSize: [20, 20],
   iconAnchor: [18, 18]
 });
  
@@ -59,7 +59,7 @@ function ClusterLayer({ vehicles, simulationMode }) {
     : simulationMode
       ? new L.Icon({
           iconUrl:"https://maps.google.com/mapfiles/ms/icons/purple-dot.png",
-          iconSize:[35,35]
+          iconSize:[16, 16]
         })
       : normalIcon,
   draggable:true
@@ -96,7 +96,11 @@ function HeatmapLayer({ vehicles }) {
  
     if (heatPoints.length === 0) return;
  
-    const heat = L.heatLayer(heatPoints, { radius: 25, blur: 15 });
+    const heat = L.heatLayer(heatPoints, {
+  radius: 18,
+  blur: 10,
+  maxZoom: 17
+});
     map.addLayer(heat);
  
     return () => map.removeLayer(heat);
@@ -152,7 +156,7 @@ function TrafficLight({ signalData }) {
  
   return (
     <div style={{
-      position: "fixed", top: 80, left: 20, zIndex: 2000,
+      position: "fixed", top: 50, bottom:400, left: 20, zIndex: 2000,
       background: "#1a1a2e", padding: 16, borderRadius: 12,
       width: 160, boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
       textAlign: "center"
@@ -196,6 +200,9 @@ function MapView() {
   const [pulse,             setPulse]             = useState(false);
   const [aiExplanation,     setAiExplanation]     = useState("Analyzing traffic...");
   const [simulationMode,setSimulationMode] = useState(false)
+  const [violations,setViolations] = useState([])
+  const [showAnalytics,setShowAnalytics] = useState(false)
+  const [showAI,setShowAI] = useState(false)
 
   const runSimulation = async () => {
 
@@ -251,12 +258,29 @@ function MapView() {
         setCollisionWarnings([]);
       }
     };
+
+    const fetchViolations = async () => {
+
+  try{
+
+    const res = await axios.get("http://localhost:5000/api/violations")
+
+    setViolations(res.data.violations)
+
+  }
+
+  catch(e){
+    console.error(e)
+  }
+
+}
  
-    fetchVehicles();
-    fetchTraffic();
-    fetchCollisions();
- 
-    const id = setInterval(() => {
+  fetchVehicles();
+  fetchTraffic();
+  fetchCollisions();
+  fetchViolations();
+
+  const id = setInterval(() => {
       if(simulationMode){
   runSimulation()
 }
@@ -266,6 +290,7 @@ else{
 
 fetchTraffic()
 fetchCollisions()
+fetchViolations()
     }, 3000);
  
     return () => clearInterval(id);
@@ -322,11 +347,11 @@ fetchCollisions()
     <>
       {/* ── TOP STATS BAR ── */}
       <div style={{
-        position: "fixed", top: 14, left: "50%",
+        position: "fixed", top: 6, left: "50%",
         transform: "translateX(-50%)", zIndex: 2000,
         background: "#0d0d1a", color: "white",
-        padding: "10px 24px", borderRadius: 50,
-        display: "flex", gap: 28, fontSize: 13,
+        padding: "4px 14px", borderRadius: 50,
+        display: "flex", gap: 28, fontSize: 12,
         fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
         border: "1px solid #333", letterSpacing: "0.5px"
       }}>
@@ -363,7 +388,7 @@ color: simulationMode ? "#bb86fc" : "#aaa"
 onClick={() => setSimulationMode(!simulationMode)}
 style={{
   position: "fixed",
-  top: 80,
+  bottom: 20,
   right: 300,
   zIndex: 3000,
   padding: "10px 16px",
@@ -382,11 +407,11 @@ style={{
       {/* ── MAP ── */}
       <MapContainer
         center={[28.6762, 77.3211]}
-        zoom={14}
+        zoom={15}
         style={{ height:"100vh",
-width:"100%",
-filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
-}}
+        width:"100%",
+        filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
+      }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -394,7 +419,7 @@ filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
         />
  
         <ClusterLayer vehicles={vehicles} simulationMode={simulationMode} />
-        <HeatmapLayer vehicles={vehicles} />
+      {/* <HeatmapLayer vehicles={vehicles} /> */}
  
         {/* Congestion zone markers */}
         {zones.map((z, i) => {
@@ -443,18 +468,43 @@ filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
  
         {/* Collision warning circles */}
         {collisionWarnings.map((w, i) => (
-          <Circle
-            key={`circle-${i}`}
-            center={[w.lat, w.lng]}
-            radius={60}
-            pathOptions={{
-              color: w.risk === "CRITICAL" ? "#ff0000" : w.risk === "HIGH" ? "#ff6600" : "#ffaa00",
-              fillColor: w.risk === "CRITICAL" ? "#ff0000" : w.risk === "HIGH" ? "#ff6600" : "#ffaa00",
-              fillOpacity: pulse ? 0.35 : 0.15,
-              weight: 2
-            }}
-          />
-        ))}
+  <Circle
+    key={`circle-${i}`}
+    center={[w.lat, w.lng]}
+    radius={20}
+    pathOptions={{
+      color: w.risk === "CRITICAL" ? "#ff0000" : "#ff9900",
+      fillColor: w.risk === "CRITICAL" ? "#ff0000" : "#ff9900",
+      fillOpacity: 0.15,
+      weight: 1
+    }}
+  />
+))}
+        {violations.map((v,i)=>(
+  <Marker
+    key={i}
+    position={[v.lat,v.lng]}
+    icon={warningIcon}
+  >
+    <Popup>
+
+      <b>🚨 TRAFFIC VIOLATION</b>
+
+      <br/>
+
+      Vehicle: {v.vehicle}
+
+      <br/>
+
+      Type: {v.type}
+
+      <br/>
+
+      Severity: {v.severity}
+
+    </Popup>
+  </Marker>
+))}
       </MapContainer>
  
       {/* ── TRAFFIC LIGHT ── */}
@@ -462,9 +512,9 @@ filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
  
       {/* ── SIGNAL DECISIONS PANEL (RIGHT) ── */}
       <div style={{
-        position: "fixed", top: 20, right: 20, zIndex: 2000,
+        position: "fixed", top: 50, bottom: 180, right: 20, zIndex: 2000,
         background: "white", padding: 16, borderRadius: 14,
-        width: 260, boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
+        width: 170, boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
         maxHeight: "75vh", overflowY: "auto"
       }}>
         <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>🚦 Signal Decisions</h3>
@@ -491,9 +541,9 @@ filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
       {/* ── COLLISION WARNINGS PANEL ── */}
       {collisionWarnings.length > 0 && (
         <div style={{
-          position: "fixed", top: 20, left: 190, zIndex: 2000,
+          position: "fixed", top: 300, bottom:20, left: 20, width:180, zIndex: 2000,
           background: "#1a0000", border: "2px solid #ff2d2d",
-          padding: 14, borderRadius: 12, width: 240,
+          padding: 14, borderRadius: 12, width: 170,
           boxShadow: "0 6px 25px rgba(255,0,0,0.4)",
           maxHeight: "60vh", overflowY: "auto"
         }}>
@@ -520,34 +570,44 @@ filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
  
       {/* ── AI DECISION PANEL (BOTTOM RIGHT) ── */}
       <div style={{
-width:8,
-height:8,
-borderRadius:"50%",
-background:"#00e5ff",
-boxShadow:"0 0 10px #00e5ff",
-marginBottom:6,
-animation:"pulse 1s infinite alternate"
-}}/>
-      <div style={{
-        position: "fixed", bottom: 20, right: 20, zIndex: 2000,
-        background: "white", padding: 14, borderRadius: 12,
-        width: 260, boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
-      }}>
-        <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>🧠 AI Decision</h3>
-        <div style={{
-fontSize:11,
-color:"#888",
-marginBottom:6
+position:"fixed",
+bottom:20,
+right:600,
+left: 600,
+zIndex:2000
 }}>
-Neural traffic model evaluating intersections...
+
+<button
+onClick={()=>setShowAI(!showAI)}
+style={{
+background:"#ffffff",
+border:"none",
+borderRadius:10,
+padding:"10px 14px",
+fontWeight:"bold",
+boxShadow:"0 4px 15px rgba(0,0,0,0.2)",
+cursor:"pointer"
+}}
+>
+🧠 AI Decision
+</button>
+
+{showAI && (
+<div style={{
+marginTop:10,
+background:"white",
+padding:14,
+borderRadius:12,
+width:220,
+boxShadow:"0 4px 20px rgba(0,0,0,0.2)",
+fontSize:12,
+lineHeight:1.6
+}}>
+{aiExplanation}
 </div>
-        <div style={{
-          background: "#f0f4ff", padding: 10, borderRadius: 8,
-          fontSize: 12, lineHeight: 1.6, color: "#333"
-        }}>
-          {aiExplanation}
-        </div>
-      </div>
+)}
+
+</div>
 
       {simulationMode && (
 <div style={{
@@ -587,26 +647,101 @@ Recommended Action:
 
 </div>
 )}
+      <div style={{
+position:"fixed",
+top:450,
+right:20,
+width:200,
+background:"#1a0000",
+color:"white",
+padding:10,
+borderRadius:10,
+width:170,
+zIndex:9999
+}}>
+
+<h3>🚨 Rule Violations</h3>
+
+{violations.length===0 && <p>No violations detected</p>}
+
+{violations.slice(0,5).map((v,i)=>(
+<div key={i} style={{marginBottom:8}}>
+
+<b>{v.type}</b>
+
+<br/>
+
+Vehicle: {v.vehicle}
+
+</div>
+))}
+
+</div>
+
+<div style={{
+position:"fixed",
+top:50,
+right:450,
+background:"white",
+padding:"6px 10px",
+borderRadius:8,
+fontSize:11,
+zIndex:2000,
+boxShadow:"0 2px 8px rgba(0,0,0,0.15)",
+display:"flex",
+gap:12,
+alignItems:"center"
+}}>
+<span>🔵 Vehicle</span>
+<span>🔴 Ambulance</span>
+<span>⚠ Collision</span>
+<span>🟠 Congestion</span>
+<span>🚨 Violation</span>
+</div>
  
       {/* ── TRAFFIC ANALYTICS (BOTTOM LEFT) ── */}
       <div style={{
-        position: "fixed", bottom: 20, left: 20, zIndex: 2000,
-        background: "white", padding: 14, borderRadius: 12,
-        width: 220, boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
-      }}>
-        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>📊 Traffic Analytics</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-          <div>🚗 Vehicles: <b>{totalVehicles}</b></div>
-          <div>🚑 Emergency: <b style={{ color: emergencyVehicles > 0 ? "red" : "green" }}>
-            {emergencyVehicles > 0 ? emergencyVehicles : "None"}
-          </b></div>
-          <div>🔥 Congestion Zones: <b>{congestionCount}</b></div>
-          <div>⚡ Avg Speed: <b>{avgSpeed} km/h</b></div>
-          <div>⚠️ Collision Risks: <b style={{ color: hasCollision ? "orange" : "green" }}>
-            {collisionWarnings.length}
-          </b></div>
-        </div>
-      </div>
+position:"fixed",
+bottom:20,
+right:600,
+left: 250,
+zIndex:2000
+}}>
+
+<button
+onClick={()=>setShowAnalytics(!showAnalytics)}
+style={{
+background:"#ffffff",
+border:"none",
+borderRadius:10,
+padding:"10px 14px",
+fontWeight:"bold",
+boxShadow:"0 4px 15px rgba(0,0,0,0.2)",
+cursor:"pointer"
+}}
+>
+📊 Traffic Analytics
+</button>
+
+{showAnalytics && (
+<div style={{
+marginTop:10,
+background:"white",
+padding:14,
+borderRadius:12,
+width:220,
+boxShadow:"0 4px 20px rgba(0,0,0,0.2)",
+fontSize:13
+}}>
+<div>🚗 Vehicles: <b>{totalVehicles}</b></div>
+<div>🚑 Emergency: <b>{emergencyVehicles || "None"}</b></div>
+<div>🔥 Congestion Zones: <b>{congestionCount}</b></div>
+<div>⚡ Avg Speed: <b>{avgSpeed} km/h</b></div>
+<div>⚠️ Collision Risks: <b>{collisionWarnings.length}</b></div>
+</div>
+)}
+
+</div>
     </>
   );
 }

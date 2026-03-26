@@ -3,8 +3,11 @@ const Vehicle = require("../models/Vehicle");
 // 🚗 1. Receive vehicle data from simulator
 exports.receiveVehicleData = async (req, res) => {
   try {
-    const vehicle = new Vehicle(req.body);
-    await vehicle.save();
+    await Vehicle.findOneAndUpdate(
+  { vehicle_id: req.body.vehicle_id },
+  req.body,
+  { upsert: true, new: true }
+);
     res.status(200).json({ message: "Vehicle data stored successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -19,7 +19,7 @@ exports.getCollisionWarnings = async (req, res) => {
   }
 };
 
-// ✅ ADD THIS FUNCTION (MISSING BEFORE)
+
 exports.getAccidentPrediction = async (req, res) => {
   try {
     res.json({

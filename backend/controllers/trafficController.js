@@ -3,14 +3,14 @@ const { analyzeTraffic } = require("../services/trafficService");
 
 exports.getTrafficAnalysis = async (req, res) => {
   try {
-    const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(500);
+    const vehicles = await Vehicle.find().sort({ timestamp: -1 }).limit(200);
 
     const analysis = analyzeTraffic(vehicles);
 
     res.json({ congestionZones: analysis });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 };
 exports.getCongestionPrediction = async (req, res) => {
@@ -20,7 +20,7 @@ exports.getCongestionPrediction = async (req, res) => {
       level: "Low"
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 };
 
@@ -47,6 +47,6 @@ exports.getSignalDecision = async (req, res) => {
     res.json(primarySignalData);
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ error: error.message });
   }
 };
