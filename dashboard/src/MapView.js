@@ -40,7 +40,7 @@ const warningIcon = new L.DivIcon({
  
 /* ─────────────── CLUSTER LAYER ─────────────── */
  
-function ClusterLayer({ vehicles }) {
+function ClusterLayer({ vehicles, simulationMode }) {
   const map = useMap();
  
   useEffect(() => {
@@ -54,9 +54,16 @@ function ClusterLayer({ vehicles }) {
       const isAmb = v.vehicle_id && v.vehicle_id.includes("AMB");
  
       const marker = L.marker([v.lat, v.lng], {
-        icon: isAmb ? ambulanceIcon : normalIcon,
-        draggable: true 
-      });
+  icon: isAmb
+    ? ambulanceIcon
+    : simulationMode
+      ? new L.Icon({
+          iconUrl:"https://maps.google.com/mapfiles/ms/icons/purple-dot.png",
+          iconSize:[35,35]
+        })
+      : normalIcon,
+  draggable:true
+});
  
       marker.bindPopup(`
         <b>${isAmb ? "🚑 AMBULANCE" : "🚗 Vehicle"}</b><br/>
@@ -70,7 +77,7 @@ function ClusterLayer({ vehicles }) {
  
     map.addLayer(markers);
     return () => map.removeLayer(markers);
-  }, [vehicles, map]);
+  }, [vehicles, map, simulationMode]);
  
   return null;
 }
@@ -188,7 +195,24 @@ function MapView() {
   const [collisionWarnings, setCollisionWarnings] = useState([]);
   const [pulse,             setPulse]             = useState(false);
   const [aiExplanation,     setAiExplanation]     = useState("Analyzing traffic...");
- 
+  const [simulationMode,setSimulationMode] = useState(false)
+
+  const runSimulation = async () => {
+
+  try{
+
+    const res = await axios.get("http://localhost:5000/api/simulate")
+
+    if(res.data.futureVehicles){
+      setVehicles(res.data.futureVehicles)
+    }
+
+  }
+  catch(e){
+    console.error("Simulation error:",e)
+  }
+
+}  
   /* ── pulse animation for corridor ── */
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 700);
@@ -233,9 +257,15 @@ function MapView() {
     fetchCollisions();
  
     const id = setInterval(() => {
-      fetchVehicles();
-      fetchTraffic();
-      fetchCollisions();
+      if(simulationMode){
+  runSimulation()
+}
+else{
+  fetchVehicles()
+}
+
+fetchTraffic()
+fetchCollisions()
     }, 3000);
  
     return () => clearInterval(id);
@@ -300,6 +330,20 @@ function MapView() {
         fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
         border: "1px solid #333", letterSpacing: "0.5px"
       }}>
+        <span style={{
+display:"flex",
+alignItems:"center",
+gap:"6px"
+}}>
+<div style={{
+width:8,
+height:8,
+borderRadius:"50%",
+background:"#00ff88",
+boxShadow:"0 0 8px #00ff88"
+}}/>
+SYSTEM ONLINE
+</span>
         <span>🚗 {totalVehicles} Vehicles</span>
         <span>🔥 {congestionCount} Congestion</span>
         <span style={{ color: emergencyVehicles > 0 ? "#ff5555" : "#55ff99" }}>
@@ -308,20 +352,48 @@ function MapView() {
         <span style={{ color: hasCollision ? "#ffaa00" : "#aaa" }}>
           ⚠️ {collisionWarnings.length} Collision Risk
         </span>
+        <span style={{
+color: simulationMode ? "#bb86fc" : "#aaa"
+}}>
+{simulationMode ? "🔮 DIGITAL TWIN ACTIVE" : "LIVE MODE"}
+</span>
       </div>
- 
+      
+      <button
+onClick={() => setSimulationMode(!simulationMode)}
+style={{
+  position: "fixed",
+  top: 80,
+  right: 300,
+  zIndex: 3000,
+  padding: "10px 16px",
+  background: simulationMode ? "#ff4444" : "#111",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  fontWeight: "bold",
+  cursor: "pointer",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+}}
+>
+{simulationMode ? "🔴 LIVE MODE" : "🔮 AI SIMULATION"}
+</button>
+
       {/* ── MAP ── */}
       <MapContainer
         center={[28.6762, 77.3211]}
         zoom={14}
-        style={{ height: "100vh", width: "100%" }}
+        style={{ height:"100vh",
+width:"100%",
+filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
+}}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="© OpenStreetMap contributors"
         />
  
-        <ClusterLayer vehicles={vehicles} />
+        <ClusterLayer vehicles={vehicles} simulationMode={simulationMode} />
         <HeatmapLayer vehicles={vehicles} />
  
         {/* Congestion zone markers */}
@@ -448,11 +520,27 @@ function MapView() {
  
       {/* ── AI DECISION PANEL (BOTTOM RIGHT) ── */}
       <div style={{
+width:8,
+height:8,
+borderRadius:"50%",
+background:"#00e5ff",
+boxShadow:"0 0 10px #00e5ff",
+marginBottom:6,
+animation:"pulse 1s infinite alternate"
+}}/>
+      <div style={{
         position: "fixed", bottom: 20, right: 20, zIndex: 2000,
         background: "white", padding: 14, borderRadius: 12,
         width: 260, boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
       }}>
         <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>🧠 AI Decision</h3>
+        <div style={{
+fontSize:11,
+color:"#888",
+marginBottom:6
+}}>
+Neural traffic model evaluating intersections...
+</div>
         <div style={{
           background: "#f0f4ff", padding: 10, borderRadius: 8,
           fontSize: 12, lineHeight: 1.6, color: "#333"
@@ -460,6 +548,45 @@ function MapView() {
           {aiExplanation}
         </div>
       </div>
+
+      {simulationMode && (
+<div style={{
+  position:"fixed",
+  bottom:180,
+  right:20,
+  zIndex:2000,
+  background:"#0a0a1f",
+  color:"white",
+  padding:16,
+  borderRadius:12,
+  width:260,
+  boxShadow:"0 4px 20px rgba(0,0,0,0.4)"
+}}>
+
+<h3 style={{margin:"0 0 8px"}}>🔮 AI Simulation</h3>
+
+<p style={{fontSize:12,lineHeight:1.6}}>
+
+Digital Twin predicting traffic for next <b>5 minutes</b>.
+
+<br/><br/>
+
+Congestion probability:
+
+<span style={{color:"#ff5555"}}> 82%</span>
+
+<br/><br/>
+
+Recommended Action:
+
+<br/>
+
+🟢 Increase green signal by 20 seconds
+
+</p>
+
+</div>
+)}
  
       {/* ── TRAFFIC ANALYTICS (BOTTOM LEFT) ── */}
       <div style={{

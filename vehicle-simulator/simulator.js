@@ -204,10 +204,8 @@ async function sendVehicleData(vehicle) {
 /* ───────────── SIMULATION ───────────── */
 function simulateTraffic(){
 
-  const vehicles = Object.keys(vehicleState).map(id =>
-  generateVehicle(id, vehicleState[id])
-).filter(Boolean);
-
+  const vehicles = []
+  
   // 1. generate all vehicles
   for (let id in vehicleState) {
   const vehicle = generateVehicle(id, vehicleState[id]);
