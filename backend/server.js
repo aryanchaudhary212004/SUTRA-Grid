@@ -17,11 +17,13 @@ const vehicleRoutes = require("./routes/vehicleRoutes.js");
 const trafficRoutes = require("./routes/trafficRoutes");
 const simulationRoutes = require("./routes/simulationRoutes");
 const violationRoutes = require("./routes/violationRoutes");
+const replayRoutes = require("./routes/replayRoutes");
 
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/traffic", trafficRoutes);
 app.use("/api", simulationRoutes);
 app.use("/api", violationRoutes);
+app.use("/api", replayRoutes);
 
 app.get("/", (req, res) => {
   res.send("API is running...");

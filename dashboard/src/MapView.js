@@ -156,9 +156,9 @@ function TrafficLight({ signalData }) {
  
   return (
     <div style={{
-      position: "fixed", top: 50, bottom:400, left: 20, zIndex: 2000,
-      background: "#1a1a2e", padding: 16, borderRadius: 12,
-      width: 160, boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+      position: "fixed", top: 50, bottom:350, left: 20, zIndex: 2000,
+      background: "#4a4a64", padding: 10, borderRadius: 12,
+      width: 100, boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
       textAlign: "center"
     }}>
       <div style={{ color: "white", fontWeight: "bold", marginBottom: 10, fontSize: 13 }}>
@@ -172,13 +172,13 @@ function TrafficLight({ signalData }) {
       }}>
         {["red", "yellow", "green"].map(c => (
           <div key={c} style={{
-            width: 34, height: 34, borderRadius: "50%",
+            width: 20, height: 20, borderRadius: "50%",
             background: lightColor(c),
             boxShadow: currentLight === c ? `0 0 14px ${lightColor(c)}` : "none",
             transition: "all 0.3s"
           }} />
         ))}
-        <div style={{ color: "white", fontSize: 22, fontWeight: "bold", marginTop: 4 }}>
+        <div style={{ color: "white", fontSize: 18, fontWeight: "bold", marginTop: 4 }}>
           {timeLeft}s
         </div>
       </div>
@@ -189,7 +189,8 @@ function TrafficLight({ signalData }) {
     </div>
   );
 }
- 
+
+
 /* ─────────────── MAIN MAP VIEW ─────────────── */
  
 function MapView() {
@@ -199,10 +200,13 @@ function MapView() {
   const [collisionWarnings, setCollisionWarnings] = useState([]);
   const [pulse,             setPulse]             = useState(false);
   const [aiExplanation,     setAiExplanation]     = useState("Analyzing traffic...");
-  const [simulationMode,setSimulationMode] = useState(false)
+  // const [simulationMode,setSimulationMode] = useState(false)
   const [violations,setViolations] = useState([])
   const [showAnalytics,setShowAnalytics] = useState(false)
   const [showAI,setShowAI] = useState(false)
+  const [mode,setMode] = useState("LIVE")
+  const [replaySeconds,setReplaySeconds] = useState(60)
+ 
 
   const runSimulation = async () => {
 
@@ -222,15 +226,30 @@ function MapView() {
 }  
   /* ── pulse animation for corridor ── */
   useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 700);
-    return () => clearInterval(id);
-  }, []);
+  const id = setInterval(() => {
+    setPulse(p => !p);
+  }, 700);
+
+  return () => clearInterval(id);
+}, []);
  
   /* ── fetch vehicles + traffic ── */
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/vehicles/");
+        let url
+
+if(mode==="LIVE"){
+url="http://localhost:5000/api/vehicles/"
+}
+else if(mode==="REPLAY"){
+url=`http://localhost:5000/api/replay?seconds=${replaySeconds}`
+}
+else if(mode==="SIMULATION"){
+url="http://localhost:5000/api/simulate"
+}
+
+const res = await axios.get(url)
         const data = res.data;
         setVehicles(Array.isArray(data) ? data : data.vehicles || data.data || []);
       } catch (e) {
@@ -276,25 +295,27 @@ function MapView() {
 }
  
   fetchVehicles();
+fetchTraffic();
+fetchCollisions();
+fetchViolations();
+
+const id = setInterval(() => {
+
+  if(mode === "SIMULATION"){
+    runSimulation();
+  } else {
+    fetchVehicles();
+  }
+
   fetchTraffic();
   fetchCollisions();
   fetchViolations();
 
-  const id = setInterval(() => {
-      if(simulationMode){
-  runSimulation()
-}
-else{
-  fetchVehicles()
-}
+}, 3000);
 
-fetchTraffic()
-fetchCollisions()
-fetchViolations()
-    }, 3000);
- 
-    return () => clearInterval(id);
-  }, []);
+return () => clearInterval(id);
+
+}, [mode, replaySeconds]);
  
   /* ── fetch signal data ── */
   useEffect(() => {
@@ -311,7 +332,7 @@ fetchViolations()
     fetchSignal();
     const id = setInterval(fetchSignal, 2000);
     return () => clearInterval(id);
-  }, []);
+  }, [mode, replaySeconds]);
  
   /* ── AI explanation ── */
   useEffect(() => {
@@ -346,16 +367,17 @@ fetchViolations()
   return (
     <>
       {/* ── TOP STATS BAR ── */}
-      <div style={{
-        position: "fixed", top: 6, left: "50%",
-        transform: "translateX(-50%)", zIndex: 2000,
-        background: "#0d0d1a", color: "white",
-        padding: "4px 14px", borderRadius: 50,
-        display: "flex", gap: 28, fontSize: 12,
-        fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-        border: "1px solid #333", letterSpacing: "0.5px"
-      }}>
-        <span style={{
+<div style={{
+  position: "fixed", top: 6, left: "50%",
+  transform: "translateX(-50%)", zIndex: 2000,
+  background: "#0d0d1a", color: "white",
+  padding: "4px 14px", borderRadius: 50,
+  display: "flex", gap: 28, fontSize: 12,
+  fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+  border: "1px solid #333", letterSpacing: "0.5px"
+}}>
+
+<span style={{
 display:"flex",
 alignItems:"center",
 gap:"6px"
@@ -367,50 +389,99 @@ borderRadius:"50%",
 background:"#00ff88",
 boxShadow:"0 0 8px #00ff88"
 }}/>
+
 SYSTEM ONLINE
 </span>
-        <span>🚗 {totalVehicles} Vehicles</span>
-        <span>🔥 {congestionCount} Congestion</span>
-        <span style={{ color: emergencyVehicles > 0 ? "#ff5555" : "#55ff99" }}>
-          🚑 {emergencyVehicles > 0 ? `${emergencyVehicles} ACTIVE` : "None"}
-        </span>
-        <span style={{ color: hasCollision ? "#ffaa00" : "#aaa" }}>
-          ⚠️ {collisionWarnings.length} Collision Risk
-        </span>
-        <span style={{
-color: simulationMode ? "#bb86fc" : "#aaa"
-}}>
-{simulationMode ? "🔮 DIGITAL TWIN ACTIVE" : "LIVE MODE"}
+
+<span> Vehicles {totalVehicles} </span>
+
+<span> Congestion {congestionCount} </span>
+
+<span style={{ color: emergencyVehicles > 0 ? "#ff5555" : "#55ff99" }}>
+Emergency {emergencyVehicles > 0 ? `${emergencyVehicles} ACTIVE` : "None"}
 </span>
-      </div>
-      
-      <button
-onClick={() => setSimulationMode(!simulationMode)}
+
+<span style={{ color: hasCollision ? "#ffaa00" : "#aaa" }}>
+Collision Risk {collisionWarnings.length}
+</span>
+
+<span style={{
+color:
+mode==="SIMULATION" ? "#bb86fc"
+: mode==="REPLAY" ? "#ffaa00"
+: "#00ff88"
+}}>
+{mode==="SIMULATION"
+? "Digital Twin Active"
+: mode==="REPLAY"
+? "Replay Mode"
+: "Live Mode"}
+</span>
+
+<div style={{
+display:"flex",
+gap:6,
+marginLeft:10
+}}>
+
+<button
+onClick={()=>setMode("LIVE")}
 style={{
-  position: "fixed",
-  bottom: 20,
-  right: 300,
-  zIndex: 3000,
-  padding: "10px 16px",
-  background: simulationMode ? "#ff4444" : "#111",
-  color: "white",
-  border: "none",
-  borderRadius: "8px",
-  fontWeight: "bold",
-  cursor: "pointer",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+padding:"4px 8px",
+borderRadius:12,
+border:"none",
+cursor:"pointer",
+background: mode==="LIVE" ? "#00ff88" : "#333",
+color:"white",
+fontSize:11
 }}
 >
-{simulationMode ? "🔴 LIVE MODE" : "🔮 AI SIMULATION"}
+LIVE
 </button>
 
+<button
+onClick={()=>setMode("REPLAY")}
+style={{
+padding:"4px 8px",
+borderRadius:12,
+border:"none",
+cursor:"pointer",
+background: mode==="REPLAY" ? "#ffaa00" : "#333",
+color:"white",
+fontSize:11
+}}
+>
+REPLAY
+</button>
+
+<button
+onClick={()=>setMode("SIMULATION")}
+style={{
+padding:"4px 8px",
+borderRadius:12,
+border:"none",
+cursor:"pointer",
+background: mode==="SIMULATION" ? "#bb86fc" : "#333",
+color:"white",
+fontSize:11
+}}
+>
+DIGITAL TWIN
+</button>
+
+</div>
+</div>
+      
+      
       {/* ── MAP ── */}
       <MapContainer
         center={[28.6762, 77.3211]}
         zoom={15}
         style={{ height:"100vh",
         width:"100%",
-        filter: simulationMode ? "hue-rotate(20deg) saturate(1.2)" : "none"
+        filter: mode==="SIMULATION"
+? "hue-rotate(20deg) saturate(1.2)"
+: "none"
       }}
       >
         <TileLayer
@@ -418,7 +489,7 @@ style={{
           attribution="© OpenStreetMap contributors"
         />
  
-        <ClusterLayer vehicles={vehicles} simulationMode={simulationMode} />
+        <ClusterLayer vehicles={vehicles} simulationMode={mode==="SIMULATION"} />
       {/* <HeatmapLayer vehicles={vehicles} /> */}
  
         {/* Congestion zone markers */}
@@ -572,8 +643,7 @@ style={{
       <div style={{
 position:"fixed",
 bottom:20,
-right:600,
-left: 600,
+right:20,
 zIndex:2000
 }}>
 
@@ -609,7 +679,7 @@ lineHeight:1.6
 
 </div>
 
-      {simulationMode && (
+      {mode==="SIMULATION" && (
 <div style={{
   position:"fixed",
   bottom:180,
@@ -700,50 +770,52 @@ alignItems:"center"
 </div>
  
       {/* ── TRAFFIC ANALYTICS (BOTTOM LEFT) ── */}
-      <div style={{
-position:"fixed",
-bottom:20,
-right:600,
-left: 250,
-zIndex:2000
-}}>
-
-<button
-onClick={()=>setShowAnalytics(!showAnalytics)}
-style={{
-background:"#ffffff",
-border:"none",
-borderRadius:10,
-padding:"10px 14px",
-fontWeight:"bold",
-boxShadow:"0 4px 15px rgba(0,0,0,0.2)",
-cursor:"pointer"
-}}
+<div
+  style={{
+    position: "fixed",
+    bottom: 20,
+    right: 600,
+    left: 250,
+    zIndex: 2000
+  }}
 >
-📊 Traffic Analytics
-</button>
+  <button
+    onClick={() => setShowAnalytics(!showAnalytics)}
+    style={{
+      background: "#ffffff",
+      border: "none",
+      borderRadius: 10,
+      padding: "10px 14px",
+      fontWeight: "bold",
+      boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+      cursor: "pointer"
+    }}
+  >
+    📊 Traffic Analytics
+  </button>
 
-{showAnalytics && (
-<div style={{
-marginTop:10,
-background:"white",
-padding:14,
-borderRadius:12,
-width:220,
-boxShadow:"0 4px 20px rgba(0,0,0,0.2)",
-fontSize:13
-}}>
-<div>🚗 Vehicles: <b>{totalVehicles}</b></div>
-<div>🚑 Emergency: <b>{emergencyVehicles || "None"}</b></div>
-<div>🔥 Congestion Zones: <b>{congestionCount}</b></div>
-<div>⚡ Avg Speed: <b>{avgSpeed} km/h</b></div>
-<div>⚠️ Collision Risks: <b>{collisionWarnings.length}</b></div>
-</div>
-)}
-
+  {showAnalytics && (
+    <div
+      style={{
+        marginTop: 10,
+        background: "white",
+        padding: 14,
+        borderRadius: 12,
+        width: 220,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+        fontSize: 13
+      }}
+    >
+      <div>🚗 Vehicles: <b>{totalVehicles}</b></div>
+      <div>🚑 Emergency: <b>{emergencyVehicles || "None"}</b></div>
+      <div>🔥 Congestion Zones: <b>{congestionCount}</b></div>
+      <div>⚡ Avg Speed: <b>{avgSpeed} km/h</b></div>
+      <div>⚠️ Collision Risks: <b>{collisionWarnings.length}</b></div>
+    </div>
+  )}
 </div>
     </>
   );
 }
- 
+
 export default MapView;
