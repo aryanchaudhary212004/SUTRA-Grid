@@ -1,10 +1,9 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from "react-leaflet";
 import { BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { useEffect, useState } from "react";
 import { useRef } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
-import { Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.heat";
@@ -48,7 +47,19 @@ const warningIcon = new L.DivIcon({
   iconSize: [20, 20],
   iconAnchor: [18, 18]
 });
+
+
+const ambulanceIcon = new L.Icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/2967/2967350.png",
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+});
  
+const highlightedIcon = new L.Icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/190/190411.png",
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+});
 /* ─────────────── CLUSTER LAYER ─────────────── */
  
 function ClusterLayer({ vehicles, simulationMode }) {
@@ -240,6 +251,16 @@ function MapView() {
   zone: getZoneLabel(i).slice(0, 8),
   density: z.density
   }));
+
+  const fetchVehicles = async () => {
+  try {
+    const res = await fetch("http://localhost:5000/api/vehicles/vehicle-data");
+    const data = await res.json();
+    setVehicles(data);
+  } catch (err) {
+    console.error("Error fetching vehicles:", err);
+  }
+};
 
   {emergencyVehicles.length > 0 && (
   <Polyline
