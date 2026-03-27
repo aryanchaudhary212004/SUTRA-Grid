@@ -62,6 +62,13 @@ const io = new Server(server, {
 
 // Make io accessible everywhere
 app.set("io", io);
+io.on("connection", (socket) => {
+  console.log("🟢 Client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected:", socket.id);
+  });
+});
 
 server.listen(5000, () => {
   console.log("Server running with Socket.IO on port 5000");

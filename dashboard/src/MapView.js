@@ -9,7 +9,12 @@ import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.heat";
 import "leaflet/dist/leaflet.css";
-import { Polyline } from "react-leaflet";
+
+const getZoneLabel = (index) => {
+  return `Zone ${String.fromCharCode(65 + index)}`;
+};
+
+
 
 /* ---------------- ICONS ---------------- */
 
@@ -159,17 +164,13 @@ function TrafficLight({ signalData }) {
 
   return (
     <div style={{
-      position: "absolute",
-      top: 80,
-      left: 20,
-      zIndex: 1000,
-      background: "white",
-      padding: "15px",
-      borderRadius: "10px",
-      width: "200px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
-    }}>
-
+  background: "rgba(255,255,255,0.95)",
+  padding: "12px",
+  borderRadius: "12px",
+  width: "240px",
+  marginBottom: "10px",
+  boxShadow: "0 4px 15px rgba(0,0,0,0.2)"
+}}>
       <h4>🚦 Traffic Signal</h4>
 
       <div style={{
@@ -213,27 +214,137 @@ function TrafficLight({ signalData }) {
 /* ---------------- MAIN MAP VIEW ---------------- */
 
 function MapView() {
+  
 
+  const mapRef = useRef(null);
   const [vehicles, setVehicles] = useState([]);
   const [zones, setZones] = useState([]);
   const [signalData, setSignalData] = useState(null);
-  const totalVehicles = vehicles.length;
-  const congestionCount = zones.length;
-
-  const emergencyVehicle = vehicles.find(v =>
-    v.vehicle_id && v.vehicle_id.includes("AMB")
-  );
-  const corridorRoute = vehicles
-  .filter(v => v.vehicle_id && v.vehicle_id.includes("AMB"))
+  const [collisions, setCollisions] = useState([]);
+  const [realRoute, setRealRoute] = useState([]);
+  const [movingVehicles, setMovingVehicles] = useState([]);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const socketRef = useRef(null);
+  const emergencyVehicles = vehicles.filter(v => v.isEmergency);
+  const route = emergencyVehicles
+  .filter(v => v.lat && v.lng)
+  .sort((a, b) => {
+    const distA = Math.abs(a.lat - 28.6762) + Math.abs(a.lng - 77.3211);
+    const distB = Math.abs(b.lat - 28.6762) + Math.abs(b.lng - 77.3211);
+    return distA - distB;
+  })
+  .slice(0, 8)
   .map(v => [v.lat, v.lng]);
-  /* ---------- VEHICLE + TRAFFIC ---------- */
 
+  const chartData = zones.slice(0, 10).map((z, i) => ({
+  zone: getZoneLabel(i).slice(0, 8),
+  density: z.density
+  }));
+
+  {emergencyVehicles.length > 0 && (
+  <Polyline
+    positions={emergencyVehicles.map(v => [v.lat, v.lng])}
+    pathOptions={{ color: "lime", weight: 5 }}
+    
+  />
+)}
+
+useEffect(() => {
+  if (!realRoute.length) return;
+
+  // create 10 vehicles at different positions
+  const initialVehicles = Array.from({ length: 10 }, (_, i) => ({
+    id: i,
+    index: i * 5, // spread across route
+  }));
+
+  setMovingVehicles(initialVehicles);
+
+}, [realRoute]);
+
+useEffect(() => {
+  if (!realRoute.length) return;
+
+  const interval = setInterval(() => {
+
+    setMovingVehicles(prev =>
+      prev.map(v => ({
+        ...v,
+        index: (v.index + 1) % realRoute.length // move forward
+      }))
+    );
+
+  }, 500); // speed
+
+  return () => clearInterval(interval);
+
+}, [realRoute]);
+
+
+
+useEffect(() => {
+
+  const fetchRoute = async () => {
+    try {
+      const emergency = vehicles.find(v => v.isEmergency);
+      const target = vehicles[0];
+
+      if (!emergency || !target) return;
+
+      const res = await axios.get(
+        `http://localhost:5000/api/traffic/real-route?startLat=${emergency.lat}&startLng=${emergency.lng}&endLat=${target.lat}&endLng=${target.lng}`
+      );
+
+      setRealRoute(res.data.route || []);
+
+    } catch (err) {
+      console.error("Route error:", err.message);
+    }
+  };
+  
+
+  fetchRoute();
+
+  const interval = setInterval(fetchRoute, 5000);
+
+  return () => clearInterval(interval);
+
+}, [vehicles]);
+
+  // Collision Risk Warnings
   useEffect(() => {
 
-    const fetchVehicles = async () => {
-      const res = await axios.get("http://localhost:5000/api/vehicles");
-      setVehicles(res.data);
-    };
+  const fetchCollisions = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/traffic/collision-risk");
+      setCollisions(res.data.warnings || []);
+    } catch (err) {
+      console.error(err.message);
+    }
+  };
+
+  fetchCollisions();
+  const interval = setInterval(fetchCollisions, 3000);
+
+  return () => clearInterval(interval);
+
+}, []);
+  // Socket.IO connection for real-time updates
+  useEffect(() => {
+    socketRef.current = io("http://localhost:5000");
+    socketRef.current.on("traffic-update", (zonesData) => {
+      setZones(zonesData);
+    });
+
+    socketRef.current.on("vehicle-update", (newVehicle) => {
+      setVehicles(prev => [newVehicle, ...prev.slice(0, 80)]);
+    });
+
+    return () => socketRef.current.disconnect();
+  }, []);
+
+  /* FETCH VEHICLES + TRAFFIC */
+useEffect(() => {
 
   const fetchTraffic = async () => {
   const res = await axios.get("http://localhost:5000/api/traffic/traffic-analysis");
@@ -263,81 +374,180 @@ function MapView() {
 
     fetchSignal();
 
-    const interval = setInterval(fetchSignal, 2000);
+}, [selectedZone]);
 
-    return () => clearInterval(interval);
 
-  }, []);
 
+  const btnStyle = {
+  background: "#1e293b",
+  color: "white",
+  border: "none",
+  borderRadius: "6px",
+  padding: "5px 10px",
+  cursor: "pointer",
+  fontSize: "16px"
+};
   return (
     <>
 
-      <MapContainer
-        center={[28.6762, 77.3211]}
-        zoom={13}
-        style={{ height: "100vh", width: "100%" }}
-      >
-        <div style={{
+    {/* 🔥 TOP STATUS BAR */}
+    <div style={{
   position: "fixed",
   top: "10px",
   left: "50%",
   transform: "translateX(-50%)",
-  zIndex: 2000,
-  background: "#1a1a2e",
+  zIndex: 3000,
+
+  background: "#0f172a",
   color: "white",
-  padding: "10px 20px",
-  borderRadius: "10px",
+
+  padding: "12px 22px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+
   display: "flex",
   gap: "25px",
   fontSize: "14px",
-  fontWeight: "bold",
-  boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
+  fontWeight: "600"
 }}>
-  🚗 Vehicles: {totalVehicles}
-  🚦 Congestion Zones: {congestionCount}
-  🚑 Emergency: {emergencyVehicle ? "ACTIVE" : "None"}
+
+  <span>🚗 {vehicles.length} Vehicles</span>
+  <span>🚦 {zones.length} Zones</span>
+  <span>
+    🚑 {vehicles.some(v => v.isEmergency) ? "Emergency ACTIVE" : "No Emergency"}
+  </span>
+
+  {/* 🔥 ZOOM BUTTONS */}
+  <button onClick={() => mapRef.current?.zoomIn()}
+    style={btnStyle}>+</button>
+
+  <button onClick={() => mapRef.current?.zoomOut()}
+    style={btnStyle}>-</button>
+
 </div>
+      <MapContainer
+  center={[28.6762, 77.3211]}
+  zoom={13}
+  zoomControl={false}
+  whenCreated={(map) => (mapRef.current = map)}  // 🔥 important
+  style={{ height: "100vh", width: "100%" }}
+>
+        {route.length > 0 && (
+ <Polyline
+  positions={route}
+  pathOptions={{
+    color: "lime",
+    weight: 5,
+    dashArray: "8,8"   // 🔥 add this
+  }}
+/>
+)}
+
+        {collisions
+          .filter(c => c.risk === "HIGH" || c.risk === "CRITICAL")
+          .slice(0, 10)
+          .map((c, i) => (
+  <Circle
+    key={i}
+    center={[c.lat, c.lng]}
+    radius={30}
+    pathOptions={{
+      color: c.risk === "CRITICAL" ? "red" : "orange"
+    }}
+  />
+))}
 
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution="© OpenStreetMap contributors"
         />
 
-        <ClusterLayer vehicles={vehicles} />
-        <HeatmapLayer vehicles={vehicles} />
+  <ClusterLayer vehicles={vehicles} />
+  <HeatmapLayer vehicles={vehicles} />
 
-        {zones.map((z, i) => {
-
-          const [lat, lng] = z.zone.split("-").map(Number);
-
-          return (
-            <Marker key={i} position={[lat, lng]}>
-              <Popup>
-                🚦 Congestion Detected <br/>
-                Density: {z.density} <br/>
-                Recommendation: {z.recommendation} <br/>
-                Prediction: {z.prediction}
-              </Popup>
-            </Marker>
-          );
-        })}
-        {corridorRoute.length > 0 && (
+        {realRoute.length > 0 && (
   <Polyline
-    positions={corridorRoute}
+    positions={realRoute}
     pathOptions={{
-      color: "#00ff88",
-      weight: 6,
-      dashArray: "10,10"
+      color: "blue",
+      weight: 6
     }}
   />
 )}
 
-      </MapContainer>
+        {zones.slice(0, 10).map((z, i) => {
+          const [lat, lng] = z.zone.split("-").map(Number);
 
-      {/* AI Traffic Light */}
-      {signalData && <TrafficLight signalData={signalData} />}
+          return (
+            <Marker
+  position={[lat, lng]}
+  eventHandlers={{
+    click: () => setSelectedZone(z)
+  }}
+  icon={
+    selectedZone?.zone === z.zone
+      ? highlightedIcon
+      : normalIcon
+  }
+>
+            </Marker>
+          );
+        })}
+        
 
-      {/* Signal Decision Panel */}
+  </MapContainer>
+
+
+
+<div style={{
+  position: "fixed",
+  top: "10px",
+  left: "20px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "12px",
+  zIndex: 3000,
+  marginTop: "20px"
+}}>
+  {selectedZone && (
+  <TrafficLight signalData={signalData} />
+)}
+
+  {/* 💥 Collision Alerts */}
+  <div style={{
+    background: "white",
+    padding: "12px",
+    borderRadius: "12px",
+    width: "240px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.2)"
+  }}>
+    <h4>💥 Collision Alerts</h4>
+
+    {collisions.slice(0, 5).map((c, i) => (
+      <div key={i} style={{ fontSize: "13px" }}>
+        {c.risk} - {c.combinedSpeed}
+      </div>
+    ))}
+  </div>
+
+  {/* 📊 Traffic Density */}
+  <div style={{
+    background: "white",
+    padding: "12px",
+    borderRadius: "12px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.2)"
+  }}>
+    <h4>📊 Traffic Density</h4>
+
+    <BarChart width={240} height={140} data={chartData}>
+      <XAxis dataKey="zone" />
+      <YAxis />
+      <Tooltip />
+      <Bar dataKey="density" />
+    </BarChart>
+  </div>
+
+</div>
 
       <div style={{
         position: "fixed",
